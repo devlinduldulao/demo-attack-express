@@ -14,6 +14,8 @@ Express 5 requires **Node.js >= 18**. Migration notes: [Migrating to Express 5](
 | Intentionally vulnerable **Express 5** API | [`server/`](server/) | **Cloudflare Workers** (recommended, free) or **Azure App Service** |
 | Black-box attack script | [`attack/attack.mjs`](attack/attack.mjs) | Laptop during the talk |
 | Happy + unhappy tests | [`tests/`](tests/) | CI / pre-talk check |
+| **Screen slide:** Cloudflare edge vs app security | [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) | Projector after the attack |
+| **5-minute talk script** | [`TALK.md`](TALK.md) | Live presentation |
 
 > **Educational only.** Only point the attack script at instances **you** deployed.
 
@@ -151,10 +153,12 @@ Deploy the **`server/`** folder (Node 18+).
 
 ```text
 .
-  HOW-TO-ATTACK.md          # step-by-step attack runbook + env vars
-  EXPRESS-V5.md             # Express 5 notes for this demo
-  ATTACK-RUN-STUDY.md       # study guide for a real Workers attack log
-  attack/attack.mjs         # theatrical black-box attacker
+  HOW-TO-ATTACK.md              # step-by-step attack runbook + env vars
+  EXPRESS-V5.md                 # Express 5 notes for this demo
+  ATTACK-RUN-STUDY.md           # study guide for a real Workers attack log
+  CLOUDFLARE-VS-APP-SECURITY.md # screen slide: edge defaults ≠ API security
+  TALK.md                       # 5-minute talk script (API only)
+  attack/attack.mjs             # theatrical black-box attacker
   server/
     package.json            # express@^5.2.1
     app.js                  # createApp() — Express 5 vulnerable routes

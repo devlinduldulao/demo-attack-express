@@ -376,7 +376,8 @@ cd ../demo-attack-express
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 ```
 
-Full env/runbook: [`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md).
+Full env/runbook: [`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md).  
+**Projector slide (Cloudflare edge vs app):** [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md).
 
 ---
 

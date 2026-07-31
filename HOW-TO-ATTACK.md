@@ -10,7 +10,7 @@ Complete runbook for **starting the target**, **setting environment variables**,
 | Frontend | **None** — attack hits the API URL directly |
 | Legal | Only attack systems **you own** or have written permission to test |
 
-Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md)
+Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md)
 
 All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `tests/`), unless a step says `cd server`.
 
