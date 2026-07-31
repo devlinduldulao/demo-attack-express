@@ -525,7 +525,9 @@ async function phaseRecon() {
 
 async function phaseMissingSecurityHeaders() {
   step("Missing browser security headers (no login)");
-  intent("Express does not install secure browser headers by default (framework gap).");
+  intent(
+    "Express does not install Helmet-style secure browser headers on normal responses (framework gap; docs recommend Helmet)."
+  );
   const res = await http("GET", "/api/health", { label: "header-audit" });
   const needed = [
     "x-content-type-options",
@@ -545,7 +547,7 @@ async function phaseMissingSecurityHeaders() {
     record(
       "INFO",
       "X-Powered-By: Express left enabled",
-      "Express enables this by default unless app.disable('x-powered-by')",
+      "Express enables x-powered-by by default (application.js); disable with app.disable('x-powered-by'). Official security guide: reduce fingerprinting.",
       { kind: "framework-gap" }
     );
   }
@@ -556,7 +558,7 @@ async function phaseMissingSecurityHeaders() {
     record(
       "MEDIUM",
       "No application secure-headers middleware",
-      "Express ships no CSP/XFO/nosniff by default. Edge may add HSTS — that is not the app.",
+      "Bare Express does not set CSP/XFO/nosniff/HSTS on app routes (use Helmet or equivalent). Edge may add HSTS — that is not the app.",
       { kind: "framework-gap", owasp: "API8" }
     );
   } else {
@@ -568,7 +570,7 @@ async function phaseMissingSecurityHeaders() {
 async function phaseBodyLimit() {
   step("Oversized JSON body (demo misconfig — not Express default)");
   intent(
-    "Honest: Express express.json() defaults to 100kb→413. This demo uses a custom ~50mb parser so Workers + the attack still work."
+    "Honest: when used, express.json() (body-parser) defaults limit to '100kb' and rejects larger bodies with 413. This demo uses a custom ~50mb parser so Workers + the attack still work."
   );
   narrate("Building a ~1.5 MiB password field and POSTing it to /api/auth/login…");
   const pad = "x".repeat(1.5 * 1024 * 1024);
@@ -587,7 +589,7 @@ async function phaseBodyLimit() {
       record(
         "HIGH",
         "Demo misconfig: custom parser allows ~50mb bodies",
-        "Not an Express default. express.json() is 100kb. Junior replaced the safer default for convenience / Workers.",
+        "Not an Express default. body-parser/express.json limit defaults to '100kb' (413 entity.too.large). Junior replaced that with an explicit ~50mb parser (Workers + demo).",
         { kind: "misconfig", owasp: "API4" }
       );
     } else {
@@ -605,7 +607,9 @@ async function phaseBodyLimit() {
 
 async function phaseNoRateLimitFlood() {
   step("Login flood — no rate limit (framework gap)");
-  intent("Express has no built-in login rate limit. Credential stuffing is free until you add one.");
+  intent(
+    "Express core has no login rate limiter (security guide recommends external packages e.g. rate-limiter-flexible). Credential stuffing is free until you add one."
+  );
   if (skipFlood) {
     info("Skipped (--skip-flood)");
     return;
@@ -646,7 +650,7 @@ async function phaseNoRateLimitFlood() {
     record(
       "HIGH",
       "No rate limiting on authentication",
-      `${N} concurrent failures, zero 429 — Express provides no login throttle by default`,
+      `${N} concurrent failures, zero 429 — no built-in auth throttle in Express; must add middleware`,
       { kind: "framework-gap", owasp: "API4" }
     );
   } else if (got429 > 0) {
@@ -724,7 +728,7 @@ async function phaseOpenRedirect() {
     record(
       "HIGH",
       "Open redirect",
-      "Any absolute URL accepted — junior code; Express will redirect wherever you tell it",
+      "Any absolute URL accepted — junior code; res.redirect(url) does not validate destinations (Express security guide: prevent open redirects)",
       { kind: "junior-code", owasp: "API8" }
     );
   } else {
@@ -819,7 +823,7 @@ async function phaseSsrfProxy() {
 async function phaseStackAndEcho() {
   step("Error stack leak + reflected XSS sink (no login)");
   intent(
-    "Stack leak: junior custom handler — Express finalhandler redacts stacks in production. XSS: junior HTML echo."
+    "Stack leak: junior custom handler — Express default error path uses finalhandler, which omits err.stack when NODE_ENV=production. XSS: junior HTML echo."
   );
   narrate("Triggering an intentional server error…");
   const boom = await http("GET", "/api/boom", { label: "stack-leak" });
@@ -829,7 +833,7 @@ async function phaseStackAndEcho() {
     record(
       "MEDIUM",
       "Misconfig: custom error handler leaks stack in production",
-      "Express finalhandler redacts stack when NODE_ENV=production. This app overrides that on purpose.",
+      "Default finalhandler (Express error path) only includes err.stack when env !== 'production'. This app's /api/boom + custom handler always send stack JSON.",
       { kind: "misconfig", owasp: "API8" }
     );
   } else {
@@ -889,7 +893,7 @@ async function phaseStackAndEcho() {
 async function phaseSlowTimeout() {
   step("Slow handler holds the connection (no login)");
   intent(
-    "Express has no middleware request budget. (Node http.Server has ~300s requestTimeout by default — we do NOT zero it. A 3s hang still proves no app-level cap.)"
+    "Express has no request-timeout middleware. Node's http.Server requestTimeout defaults to 300000ms (5 min) since Node 18 — we do not zero it. A 3s hang still proves no tight app-level budget."
   );
   if (skipSlow) {
     info("Skipped (--skip-slow)");
@@ -905,7 +909,7 @@ async function phaseSlowTimeout() {
     record(
       "MEDIUM",
       "No application request-timeout budget",
-      "Express provides no requestTimeoutMs middleware. Node defaults (~300s) do not stop a 3s hang. Junior left /api/slow unbounded (capped only in app code at 120s).",
+      "Express core has no per-request timeout middleware. Node http.Server requestTimeout default is 300s (not a 3s app budget). Junior left /api/slow open (app caps at 120s only).",
       { kind: "framework-gap", owasp: "API4" }
     );
   } else if (res.status === 400 || res.status === 404) {
@@ -1340,15 +1344,17 @@ ${c.bold}${c.red}╔════════════════════
 
   console.log(`
   ${c.bold}What Express actually fails to give you by default:${c.reset}
-    · No secure browser headers (and x-powered-by stays ON)
+    · No Helmet-style secure headers on routes (x-powered-by stays ON)
     · No rate limiting / login throttle
-    · No request timeout budget
+    · No app-level request timeout middleware
     · No authz primitive (requireAuth ≠ requireRole)
     · No response schema / field allowlist
-    · No SSRF / open-redirect helpers
-    (Where Express *does* have a default — e.g. express.json 100kb, finalhandler
-     stack redaction in production — this demo sometimes replaces them on purpose.
-     Those findings are labelled misconfig, not framework-gap.)
+    · No SSRF / open-redirect helpers (res.redirect does not validate URLs)
+    (Where Express *does* have a safer default when you use it — e.g. express.json
+     limit '100kb'→413; finalhandler omits stacks when NODE_ENV=production —
+     this demo sometimes replaces them on purpose. Those findings are misconfig,
+     not framework-gap. Sources: expressjs.com body-parser docs, security guide,
+     express/lib/application.js, pillarjs/finalhandler.)
 
   ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md for the edge-vs-app framing.
   Only attack systems you own. Educational VaultPay demo only.
