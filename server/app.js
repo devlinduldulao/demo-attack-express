@@ -1,8 +1,17 @@
 /**
- * VaultPay Express app factory — INTENTIONALLY VULNERABLE.
+ * VaultPay Express 5 app factory — INTENTIONALLY VULNERABLE.
+ *
+ * Uses Express 5.x (https://expressjs.com/en/blog/2024-10-15-v5-release/
+ * and https://expressjs.com/en/guide/migrating-5/). Node.js >= 18 required.
  *
  * Maps 1:1 to protections DaloyJS enables by default (see README table).
  * Export `createApp()` so tests can boot an isolated instance per case.
+ *
+ * Express 5 notes used here:
+ *  - `res.status(code).json(...)` / `res.redirect(status, url)` (v5 signatures)
+ *  - `req.body` may be `undefined` until parsed — always use `req.body || {}`
+ *  - Route params are simple `:id` names (no legacy regex sub-expressions)
+ *  - Rejected async handlers would forward to error middleware (v5 promise support)
  */
 
 import express from "express";
@@ -34,11 +43,16 @@ function parseSize(value) {
 }
 
 /**
- * Minimal JSON body parser (no body-parser / iconv-lite).
+ * Minimal JSON body parser (avoids express.json() on Cloudflare Workers).
  *
- * Express's built-in express.json() pulls iconv-lite, which currently breaks
- * under Wrangler's Workers bundle (`require_streams is not a function`).
- * This keeps the same oversized-body demo behavior on Node, Azure, and CF.
+ * Express 5 still ships body-parser middleware via `express.json()`. That path
+ * pulls `iconv-lite`, which currently breaks under Wrangler's Workers bundle
+ * (`require_streams is not a function`). We use this stream reader instead so
+ * Node, Azure, and Workers share one oversized-body demo (limit ~50mb vs
+ * Daloy's 1 MiB default).
+ *
+ * Express 5: unparsed `req.body` is `undefined` (not `{}`). Handlers should use
+ * `req.body || {}`. When Content-Type is not JSON we leave body undefined.
  *
  * @param {{ limit?: string|number }} [opts]
  * @returns {import("express").RequestHandler}
@@ -51,7 +65,7 @@ function jsonBody(opts = {}) {
     }
     const ct = String(req.headers["content-type"] || "");
     if (!ct.includes("application/json")) {
-      req.body = req.body || {};
+      // Express 5: do not invent {}. Callers use `req.body || {}`.
       return next();
     }
 
@@ -130,7 +144,7 @@ function createApp(opts = {}) {
   );
 
   // Oversized body allowed (~50mb). Daloy: bodyLimitBytes = 1 MiB.
-  // Custom parser: express.json() → body-parser → iconv-lite breaks on Workers.
+  // Custom parser instead of express.json() — see jsonBody() for CF Workers note.
   // No requestTimeoutMs equivalent is registered at all.
   app.use(jsonBody({ limit: BODY_LIMIT }));
 
@@ -175,7 +189,12 @@ function createApp(opts = {}) {
   });
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, service: "vaultpay-api", time: new Date().toISOString() });
+    res.json({
+      ok: true,
+      service: "vaultpay-api",
+      express: "5",
+      time: new Date().toISOString(),
+    });
   });
 
   // -------------------------------------------------------------------------

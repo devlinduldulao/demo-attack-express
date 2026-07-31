@@ -3,9 +3,12 @@
 A **live talk demo** that shows why junior developers who finish a YouTube
 tutorial on "Express + JWT + React" and deploy it publicly are still wide open.
 
+**Backend stack:** [Express **5.x**](https://www.npmjs.com/package/express) (`express@^5.2.1`) + JWT + in-memory DB.  
+Express 5 requires **Node.js >= 18**. Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrating-5/) · [v5 release post](https://expressjs.com/en/blog/2024-10-15-v5-release/) · demo notes in [`EXPRESS-V5.md`](EXPRESS-V5.md).
+
 | Piece | Folder | Deploy target |
 | --- | --- | --- |
-| Intentionally vulnerable Express API | [`server/`](server/) | **Cloudflare Workers** (recommended, free) or **Azure App Service** |
+| Intentionally vulnerable **Express 5** API | [`server/`](server/) | **Cloudflare Workers** (recommended, free) or **Azure App Service** |
 | Pretty React SPA login + dashboard | [`client/`](client/) | **GitHub Pages** (static) |
 | Black-box attack script | [`attack/attack.mjs`](attack/attack.mjs) | Laptop during the talk |
 | Happy + unhappy tests | [`tests/`](tests/) | CI / pre-talk check |
@@ -21,11 +24,12 @@ tutorial on "Express + JWT + React" and deploy it publicly are still wide open.
 | Claim | Reality |
 | --- | --- |
 | SPA login + JWT “feels secure” | Works. Dashboard loads with Bearer token. |
-| Attack script steals PII without a password | Works locally and on a public Azure URL. |
-| Path traversal / open redirect / open proxy | Built into this demo server; verified by tests. |
+| Attack script steals PII without a password | Works locally, on Cloudflare Workers, and Azure. |
+| Path traversal / open redirect / open proxy | Built into this Express **5** server; verified by tests. |
 | Body-limit + login flood demos | Work on the demo API. Azure Free tier / front-door WAF *may* add platform limits — use `--skip-flood` if the free plan throttles you. |
-| In-memory DB | Resets on App Service restart/scale-out. Fine for a talk; not a real bank. |
-| Cold start on Free F1 | First request can be slow; hit `/api/health` before the live attack. |
+| In-memory DB | Resets on App Service restart/scale-out / Worker cold start. Fine for a talk; not a real bank. |
+| Cold start | First request can be slow; hit `/api/health` before the live attack. |
+| “But we use Express 5 now” | **v5 does not add authz, rate limits, or secure headers by default.** Same junior mistakes still apply. |
 
 This is **not** a full DDoS tool. The “flood” phase is a short parallel burst (dozens of logins) that proves **no 429**, not a network-layer denial of service.
 
@@ -173,10 +177,13 @@ CORS is `*` on purpose so Pages → Azure works without extra config.
 
 ```text
 demo-attack-express/
+  EXPRESS-V5.md             # Express 4 → 5 notes for this demo
+  ATTACK-RUN-STUDY.md       # study guide for a real Workers attack log
   attack/attack.mjs         # theatrical black-box attacker
   server/
-    app.js                  # createApp() — all vulnerable routes
-    server.js               # Node / Azure listen()
+    package.json            # express@^5.2.1
+    app.js                  # createApp() — Express 5 vulnerable routes
+    server.js               # Node / Azure listen() (v5 error callback)
     worker.mjs              # Cloudflare Workers entry
     wrangler.toml           # CF deploy config
     DEPLOY-CLOUDFLARE.md    # CF deploy runbook
@@ -193,6 +200,21 @@ demo-attack-express/
 ```
 
 ---
+
+## How to attack (step by step)
+
+Full runbook with every environment variable, local / Cloudflare / Azure paths, Zscaler TLS notes, and talk-day checklist:
+
+**[`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md)**
+
+Quick live attack (after deploy):
+
+```powershell
+cd demo-attack-express
+# Corporate TLS intercept (Zscaler) only if Node cert errors:
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+```
 
 ## Attack script console output
 

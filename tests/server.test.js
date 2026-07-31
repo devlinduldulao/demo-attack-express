@@ -87,11 +87,12 @@ beforeEach(() => {
 });
 
 describe("happy paths", () => {
-  it("GET /api/health returns ok", async () => {
+  it("GET /api/health returns ok (Express 5 demo)", async () => {
     const res = await req("GET", "/api/health");
     assert.equal(res.status, 200);
     assert.equal(res.json.ok, true);
     assert.equal(res.json.service, "vaultpay-api");
+    assert.equal(res.json.express, "5");
   });
 
   it("POST /api/auth/login returns JWT + public user", async () => {

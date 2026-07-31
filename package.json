@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Intentionally vulnerable Express+JWT demo + React SPA + attack script. Educational only.",
+  "description": "Intentionally vulnerable Express 5 + JWT demo + React SPA + attack script. Educational only.",
   "scripts": {
     "server": "npm --prefix server start",
     "server:dev": "npm --prefix server run dev",

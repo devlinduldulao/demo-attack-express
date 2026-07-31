@@ -3,9 +3,11 @@
  * VaultPay demo attacker
  * ======================
  *
- * Black-box script against a VaultPay-style Express API. Console output is
- * built for a live talk: every probe shows intent → wire request → response
- * → loot / finding, plus a running scoreboard.
+ * Black-box script against a VaultPay-style **Express 5** + JWT API.
+ * (Target ships express@^5.2.1 — https://expressjs.com/en/guide/migrating-5/)
+ *
+ * Console output is built for a live talk: every probe shows
+ * intent → wire request → response → loot / finding, plus a running scoreboard.
  *
  * Usage:
  *   node attack.mjs <API_BASE_URL>
@@ -101,12 +103,15 @@ ${c.red}${c.bold}╔════════════════════
 ║   ██████╔╝███████╗██║ ╚═╝ ██║╚██████╔╝                               ║
 ║   ╚═════╝ ╚══════╝╚═╝     ╚═╝ ╚═════╝                                ║
 ║                                                                      ║
-║   JWT ≠ Secure API   ·   live black-box engagement                   ║
+║   JWT ≠ Secure API   ·   Express 5 target   ·   black-box            ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
   console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
   console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
+  console.log(
+    `${c.bold}Expect${c.reset}   Express 5.x vulnerable demo (JWT alone ≠ secure)`
+  );
   console.log(
     `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}`
   );

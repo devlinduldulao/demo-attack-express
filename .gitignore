@@ -30,3 +30,6 @@ Thumbs.db
 **/wrangler.toml.local
 .mf/
 .dev.vars
+
+# Local attack capture (optional; study guide is the durable artifact)
+ATTACK-RUN-LATEST.log

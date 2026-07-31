@@ -1,11 +1,13 @@
 /**
- * Cloudflare Workers entrypoint for VaultPay Express.
+ * Cloudflare Workers entrypoint for VaultPay Express 5.
  *
  * Official pattern:
  * https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/
  *
  *   app.listen(PORT)
  *   export default httpServerHandler({ port: PORT })
+ *
+ * App is Express 5.x (Node >= 18, see https://expressjs.com/en/guide/migrating-5/).
  *
  * Local:   npm run dev:cf
  * Deploy:  npm run deploy:cf

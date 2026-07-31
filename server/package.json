@@ -1,7 +1,7 @@
 {
   "name": "vaultpay-api",
   "version": "1.0.0",
-  "description": "INTENTIONALLY VULNERABLE Express + JWT demo API. Educational use only.",
+  "description": "INTENTIONALLY VULNERABLE Express 5 + JWT demo API. Educational use only.",
   "private": true,
   "type": "module",
   "main": "server.js",
@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
