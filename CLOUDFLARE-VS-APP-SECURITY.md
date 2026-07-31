@@ -1,8 +1,14 @@
-# Cloudflare edge defaults ≠ API security
+# Edge platform defaults ≠ API security
 
 **Show this on screen after the attack run.**  
-Demo target: Express 5 VaultPay on Cloudflare Workers  
-Live URL: `https://vaultpay-api.devlinduldulao.workers.dev`
+Same intentional **Express 5** VaultPay app on two free clouds:
+
+| Platform | URL |
+| --- | --- |
+| Cloudflare Workers | `https://vaultpay-api.devlinduldulao.workers.dev` |
+| Vercel serverless | `https://vaultpay-api.vercel.app` |
+
+Full studies: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
 
 ---
 
@@ -15,16 +21,25 @@ It does not authorize your REST API.**
 
 ## What the attack proved (this demo)
 
-### Cloudflare *did* interfere
+### Cloudflare *did* interfere (this demo)
 
 | Probe | What happened | Who blocked it? |
 | --- | --- | --- |
-| XSS payload in `/api/echo` | HTTP **403**, large WAF-style body | **Cloudflare** (platform) |
+| Noisy XSS payload in `/api/echo` | HTTP **403**, large WAF-style body | **Cloudflare** (platform) |
 | SSRF self-fetch via `/api/proxy` to same Worker | HTTP **404** + `error code: 1042` | **Cloudflare** (Worker fetch policy) |
 
 Those are **edge / runtime platform** behaviors — not Express 5 “becoming secure.”
 
-### Cloudflare *did not* stop (app still pwned)
+### Vercel *did little* for these probes (same app)
+
+| Probe | Vercel result |
+| --- | --- |
+| SSRF self-fetch to own debug URL | **200** — returned `jwtSecret` (**CRITICAL**) |
+| Mild HTML echo XSS class | **200** — reflected as `text/html` (**HIGH**) |
+| HSTS | **Present** (edge) — only partial header help |
+| Unauth PII / BOLA / forge admin | Still **pwned** |
+
+### Neither platform stopped (app still pwned)
 
 | Attack | Result | Needs login? |
 | --- | --- | --- |
@@ -161,7 +176,7 @@ CF missed:  almost everything that mattered
 
 | Doc | Use |
 | --- | --- |
-| [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) | Full phase-by-phase of the live run |
+| [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | Full phase-by-phase of the live run |
 | [`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md) | How to reproduce |
 | [`README.md`](README.md) | Project overview + Daloy mapping |
 

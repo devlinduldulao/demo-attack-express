@@ -1,4 +1,4 @@
-# Attack run study guide
+# Attack run study — Cloudflare Workers (Express 5)
 
 **Target:** `https://vaultpay-api.devlinduldulao.workers.dev`  
 **Stack under test:** **Express 5** + JWT (intentionally vulnerable VaultPay demo)  
@@ -7,14 +7,15 @@
 **Command:**
 
 ```powershell
-# From this repo root (sibling of daloy: Documents/GitHub/demo-attack-express)
+# From this repo root
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 ```
 
 **Result:** `DEMO RESULT: API PWNED — 9 critical findings · 68 requests`  
 **By severity:** `CRITICAL: 9` · `HIGH: 5` · `MEDIUM: 4`
 
-This document studies **only Express 5** on Cloudflare Workers. There is no Express 4 baseline in this guide.
+This document studies **only Express 5** on **Cloudflare Workers**.  
+Sister study (same app on Vercel): [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
 
 ---
 

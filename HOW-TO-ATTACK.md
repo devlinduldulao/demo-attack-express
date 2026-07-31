@@ -6,11 +6,11 @@ Complete runbook for **starting the target**, **setting environment variables**,
 | --- | --- |
 | Target app | Intentionally vulnerable **Express 5** + JWT API |
 | Attacker | `attack/attack.mjs` (Node 18+, no extra deps) |
-| Live example | `https://vaultpay-api.devlinduldulao.workers.dev` |
+| Live examples | CF: `https://vaultpay-api.devlinduldulao.workers.dev` · Vercel: `https://vaultpay-api.vercel.app` |
 | Frontend | **None** — attack hits the API URL directly |
 | Legal | Only attack systems **you own** or have written permission to test |
 
-Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md)
+Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md)
 
 All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `tests/`), unless a step says `cd server`.
 
@@ -276,13 +276,64 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 | XSS `onerror=alert` | HIGH | Often **WAF 403** |
 | Raw TCP | HTTP only | **Skipped** (HTTPS) |
 
-Study: [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md).
+Study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md).
 
 ---
 
-## 6. Path D — Azure App Service
+## 6. Path D — Live Vercel serverless
 
-### D1 — App settings
+### D1 — Login (once)
+
+```powershell
+cd server
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if cert errors
+vercel whoami
+cd ..
+```
+
+### D2 — Deploy from local machine
+
+```powershell
+cd server
+npm install
+vercel --prod --yes
+cd ..
+```
+
+Alias example: `https://vaultpay-api.vercel.app`  
+Private GitHub is **not** required (CLI uploads from disk).
+
+### D3 — Confirm
+
+```powershell
+Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
+# expect: express=5
+```
+
+### D4 — Attack
+
+```powershell
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if needed
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+```
+
+### D5 — What differs from Cloudflare
+
+| Probe | Cloudflare | Vercel |
+| --- | --- | --- |
+| SSRF to own debug URL | Often **1042** blocked | Often **works** (CRITICAL) |
+| Mild HTML XSS sink | Works | Works |
+| Noisy XSS | Often WAF 403 | Mild payload enough |
+| HSTS | Often missing | Often **present** |
+| Authz / PII dump | Still pwned | Still pwned |
+
+Full study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · deploy: [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md).
+
+---
+
+## 7. Path E — Azure App Service
+
+### E1 — App settings
 
 | Name | Value |
 | --- | --- |
@@ -293,7 +344,7 @@ Study: [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md).
 
 Deploy **`server/`** only.
 
-### D2 — Attack
+### E2 — Attack
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if cert errors
@@ -302,7 +353,7 @@ node attack/attack.mjs https://YOUR-APP.azurewebsites.net --drama
 
 ---
 
-## 7. Demo credentials (seed data)
+## 8. Demo credentials (seed data)
 
 | Email | Password | Role |
 | --- | --- | --- |
@@ -314,7 +365,7 @@ Used automatically by the attacker. Default JWT secret: `supersecret123`.
 
 ---
 
-## 8. Phase order
+## 9. Phase order
 
 | # | Phase | Needs login? |
 | --- | --- | --- |
@@ -335,47 +386,51 @@ Used automatically by the attacker. Default JWT secret: `supersecret123`.
 
 ---
 
-## 9. Talk-day checklist
+## 10. Talk-day checklist
 
 ```powershell
 # Repo root (server/ + attack/)
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler if needed
 
 # 1) Deploy if code changed
 cd server
 npm install
 npx wrangler deploy
+vercel --prod --yes
 cd ..
 
-# 2) Confirm
+# 2) Confirm both clouds
 Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
+Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
 
-# 3) Optional: open / or /api/health in a browser for the audience
-
-# 4) Attack (Zscaler only if cert errors)
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
+# 3) Attack both (optional: one is enough on stage)
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama
 
+# 4) Show PLATFORM-COMPARISON.md or CLOUDFLARE-VS-APP-SECURITY.md
 # 5) End on: DEMO RESULT: API PWNED
 ```
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
 | `fetch failed` / `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` | `$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"` |
 | Connection refused | API not running; wrong URL; hit `/api/health` first |
 | Wrangler not logged in | `cd server; npx wrangler login` |
+| Vercel not logged in | `cd server; vercel login` |
 | Few findings | Wrong host / WAF / not this demo |
-| SSRF not CRITICAL on Workers | Expected CF `1042` on self-fetch |
-| XSS not CRITICAL on Workers | Expected WAF `403` |
+| SSRF not CRITICAL on Workers | Expected CF `1042` on self-fetch — try Vercel URL for full SSRF |
+| XSS not CRITICAL on Workers | Expected WAF `403` on noisy payloads — mild HTML still proves sink |
 | Flood flaky | `--skip-flood` |
+| Mass-assign 404 on Vercel | Use latest attacker (seed users Alice/Bob); multi-instance RAM |
 | `express` not 5 after deploy | Redeploy after `npm install` with `express@^5.2.1` |
 
 ---
 
-## 11. Copy-paste env blocks
+## 12. Copy-paste env blocks
 
 ### Local Node server
 
@@ -388,11 +443,12 @@ cd server
 npm start
 ```
 
-### Attacker (live CF + Zscaler)
+### Attacker (live CF or Vercel + Zscaler)
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama
 ```
 
 ### Clear TLS bypass after the talk

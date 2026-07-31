@@ -113,8 +113,11 @@ function jsonBody(opts = {}) {
   };
 }
 
-/** Detect Cloudflare Workers / Wrangler for the debug banner (best-effort). */
+/** Detect deploy runtime for the debug banner (best-effort). */
 function runtimeLabel() {
+  if (process.env.VERCEL || process.env.VERCEL_ENV) {
+    return "vercel-serverless";
+  }
   if (process.env.CF_WORKER || process.env.WRANGLER || process.env.CLOUDFLARE_WORKER) {
     return "cloudflare-workers";
   }

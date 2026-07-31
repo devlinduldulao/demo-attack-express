@@ -30,5 +30,10 @@ Thumbs.db
 .mf/
 .dev.vars
 
-# Local attack capture (optional; study guide is the durable artifact)
-ATTACK-RUN-LATEST.log
+# Vercel
+**/.vercel/
+
+# Local attack captures (study markdown is the durable artifact)
+ATTACK-RUN-*-LATEST.log
+ATTACK-RUN-VERCEL-LATEST.log
+ATTACK-RUN-CLOUDFLARE-LATEST.log

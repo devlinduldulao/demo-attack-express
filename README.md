@@ -11,11 +11,21 @@ Express 5 requires **Node.js >= 18**. Migration notes: [Migrating to Express 5](
 
 | Piece | Folder | Deploy target |
 | --- | --- | --- |
-| Intentionally vulnerable **Express 5** API | [`server/`](server/) | **Cloudflare Workers** (recommended, free) or **Azure App Service** |
+| Intentionally vulnerable **Express 5** API | [`server/`](server/) | **Cloudflare Workers**, **Vercel**, or **Azure** |
 | Black-box attack script | [`attack/attack.mjs`](attack/attack.mjs) | Laptop during the talk |
 | Happy + unhappy tests | [`tests/`](tests/) | CI / pre-talk check |
-| **Screen slide:** Cloudflare edge vs app security | [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) | Projector after the attack |
+| **Screen slide:** edge vs app security | [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) | Projector after the attack |
+| **Platform comparison** CF vs Vercel | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) | Side-by-side results |
 | **5-minute talk script** | [`TALK.md`](TALK.md) | Live presentation |
+
+**Live demos (Express 5, same app source):**
+
+| Platform | URL | Attack study |
+| --- | --- | --- |
+| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
+| Vercel serverless | https://vaultpay-api.vercel.app | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+
+Both deploys were **local CLI → cloud** (no GitHub integration required; private repo is fine).
 
 > **Educational only.** Only point the attack script at instances **you** deployed.
 
@@ -119,7 +129,7 @@ npm test
 
 ## Deploy
 
-### Express → Cloudflare Workers (recommended, free)
+### Express → Cloudflare Workers
 
 Full notes: [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md).
 
@@ -130,14 +140,19 @@ npx wrangler login          # once
 npm run deploy:cf           # → https://vaultpay-api.<you>.workers.dev
 ```
 
-Local Workers runtime:
+### Express → Vercel
+
+Full notes: [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md).
 
 ```bash
 cd server
-npm run dev:cf              # → http://127.0.0.1:8787
-# other terminal, repo root:
-node attack/attack.mjs http://127.0.0.1:8787 --drama
+npm install
+vercel login                # once (if needed)
+vercel --prod --yes         # → https://vaultpay-api.vercel.app
+# or from repo root: npm run deploy:vercel
 ```
+
+Local CLI deploy works with a **private GitHub repo** (upload from disk; Git integration optional).
 
 ### Express → Azure App Service
 
@@ -153,26 +168,24 @@ Deploy the **`server/`** folder (Node 18+).
 
 ```text
 .
-  HOW-TO-ATTACK.md              # step-by-step attack runbook + env vars
-  EXPRESS-V5.md                 # Express 5 notes for this demo
-  ATTACK-RUN-STUDY.md           # study guide for a real Workers attack log
-  CLOUDFLARE-VS-APP-SECURITY.md # screen slide: edge defaults ≠ API security
-  TALK.md                       # 5-minute talk script (API only)
-  attack/attack.mjs             # theatrical black-box attacker
+  HOW-TO-ATTACK.md                # step-by-step attack + env vars
+  EXPRESS-V5.md                   # Express 5 notes
+  ATTACK-RUN-CLOUDFLARE.md        # live CF Workers engagement study
+  ATTACK-RUN-VERCEL.md            # live Vercel engagement study
+  PLATFORM-COMPARISON.md          # CF vs Vercel side-by-side
+  CLOUDFLARE-VS-APP-SECURITY.md   # screen slide: edge ≠ API security
+  TALK.md                         # 5-minute talk script
+  attack/attack.mjs               # black-box attacker
   server/
-    package.json            # express@^5.2.1
-    app.js                  # createApp() — Express 5 vulnerable routes
-    server.js               # Node / Azure listen()
-    worker.mjs              # Cloudflare Workers entry
-    wrangler.toml           # CF deploy config
-    DEPLOY-CLOUDFLARE.md    # CF deploy runbook
-    vfs.js                  # virtual FS (path traversal)
-    db.js                   # in-memory seed + reset()
-    merge.js                # unsafe deep merge
-    data/                   # sample public + secrets (also in vfs)
+    package.json                  # express@^5.2.1
+    app.js                        # shared vulnerable routes
+    server.js                     # Node / Azure listen()
+    worker.mjs + wrangler.toml    # Cloudflare Workers
+    api/index.js + vercel.json    # Vercel serverless
+    DEPLOY-CLOUDFLARE.md
+    DEPLOY-VERCEL.md
+    vfs.js / db.js / merge.js
   tests/
-    server.test.js
-    attack-probes.test.js
   README.md
 ```
 
@@ -180,14 +193,15 @@ Deploy the **`server/`** folder (Node 18+).
 
 ## How to attack (step by step)
 
-**[`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md)** — full env vars, local / Cloudflare / Azure paths, Zscaler TLS notes, talk-day checklist.
+**[`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md)** — full env vars, local / Cloudflare / Vercel / Azure paths, Zscaler TLS notes, talk-day checklist.
 
-Quick live attack:
+Quick live attacks:
 
 ```powershell
 # From repo root. Zscaler only if Node cert errors:
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama
 ```
 
 ## Attack script console output
@@ -197,7 +211,7 @@ Wire logging is **on by default**:
 ```text
   → SEND  #12  GET /api/users
   ← RECV  #12  200  18ms
-  ✗ VULNERABLE     Returned 4 full accounts without auth
+  ✗ APP HOLE       Returned 4 full accounts without auth
    LOOT  #1 alice@example.com  ...
   [CRITICAL] Unauthenticated user dump
 ```

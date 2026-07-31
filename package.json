@@ -9,6 +9,7 @@
     "server:dev": "npm --prefix server run dev",
     "server:cf": "npm --prefix server run dev:cf",
     "deploy:cf": "npm --prefix server run deploy:cf",
+    "deploy:vercel": "npm --prefix server run deploy:vercel",
     "attack": "node attack/attack.mjs",
     "attack:local": "node attack/attack.mjs http://localhost:4000",
     "test": "npm --prefix server test",

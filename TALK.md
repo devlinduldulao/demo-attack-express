@@ -6,7 +6,9 @@ Projector order: terminal → optional markdown slides.
 | --- | --- |
 | Attack console | live terminal |
 | Edge vs app | [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) |
-| Full study | [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) |
+| CF study | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
+| Vercel study | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+| CF vs Vercel | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) |
 
 ---
 
