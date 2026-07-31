@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# builds
+client/dist/
+server/dist/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# env / secrets (even though the demo hardcodes weak ones on purpose)
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Azure / deploy leftovers
+.azure/
+*.publishsettings
+
+# Cloudflare Wrangler
+**/.wrangler/
+**/wrangler.toml.local
+.mf/
+.dev.vars

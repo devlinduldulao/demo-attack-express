@@ -1,0 +1,19 @@
+{
+  "name": "demo-attack-express",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Intentionally vulnerable Express+JWT demo + React SPA + attack script. Educational only.",
+  "scripts": {
+    "server": "npm --prefix server start",
+    "server:dev": "npm --prefix server run dev",
+    "server:cf": "npm --prefix server run dev:cf",
+    "deploy:cf": "npm --prefix server run deploy:cf",
+    "client": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "attack": "node attack/attack.mjs",
+    "attack:local": "node attack/attack.mjs http://localhost:4000",
+    "test": "npm --prefix server test",
+    "install:all": "npm --prefix server install && npm --prefix client install"
+  }
+}

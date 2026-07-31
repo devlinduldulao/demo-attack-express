@@ -1,0 +1,31 @@
+# VaultPay API — Cloudflare Workers (Express via nodejs_compat)
+# Docs: https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/
+#
+# Local:   npm run dev:cf
+# Deploy:  npm run deploy:cf
+# Attack:  node ../attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev
+
+name = "vaultpay-api"
+main = "worker.mjs"
+compatibility_date = "2026-07-29"
+compatibility_flags = [
+  "nodejs_compat",
+  # Explicit HTTP server modules (needed for Express app.listen + httpServerHandler)
+  "enable_nodejs_http_modules",
+  "enable_nodejs_http_server_modules",
+]
+
+# Free workers.dev URL: https://vaultpay-api.<account>.workers.dev
+workers_dev = true
+
+# Express → body-parser → iconv-lite breaks under the Workers bundle.
+# Point iconv-lite at a UTF-8-only stub (demo only needs UTF-8 JSON).
+[alias]
+"iconv-lite" = "./stubs/iconv-lite.js"
+
+# Keep the JWT secret weak on purpose for the teaching demo.
+# Override in the dashboard or: wrangler secret put JWT_SECRET
+[vars]
+JWT_SECRET = "supersecret123"
+BODY_LIMIT = "50mb"
+NODE_ENV = "production"

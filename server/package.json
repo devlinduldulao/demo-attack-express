@@ -1,0 +1,32 @@
+{
+  "name": "vaultpay-api",
+  "version": "1.0.0",
+  "description": "INTENTIONALLY VULNERABLE Express + JWT demo API. Educational use only.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "dev:cf": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:cf": "wrangler deploy",
+    "cf:login": "wrangler login",
+    "cf:whoami": "wrangler whoami",
+    "cf:tail": "wrangler tail",
+    "test": "node --test ../tests/*.test.js",
+    "test:server": "node --test ../tests/server.test.js",
+    "test:attack": "node --test ../tests/attack-probes.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.44.0"
+  }
+}
