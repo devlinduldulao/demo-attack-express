@@ -310,7 +310,7 @@ describe("documented vulnerabilities (expected fail-open)", () => {
     assert.equal(res.json.user.email, "admin@vaultpay.demo");
   });
 
-  it("GET /api/boom leaks stack traces", async () => {
+  it("GET /api/boom leaks stack traces (demo misconfig; Express finalhandler redacts in production)", async () => {
     const res = await req("GET", "/api/boom");
     assert.equal(res.status, 500);
     assert.ok(res.json.stack);
@@ -340,7 +340,7 @@ describe("documented vulnerabilities (expected fail-open)", () => {
     assert.equal(res.headers["x-content-type-options"], undefined);
   });
 
-  it("accepts a >1 MiB JSON body (no tight bodyLimit)", async () => {
+  it("accepts a >1 MiB JSON body (demo misconfig: custom ~50mb parser; Express json() default is 100kb)", async () => {
     const pad = "y".repeat(1.2 * 1024 * 1024);
     const res = await req("POST", "/api/auth/login", {
       body: { email: "alice@example.com", password: pad },
@@ -349,11 +349,45 @@ describe("documented vulnerabilities (expected fail-open)", () => {
     assert.ok(res.status === 401 || res.status === 200 || res.status === 400);
   });
 
-  it("CORS allows any origin", async () => {
+  it("CORS allows any origin (demo misconfig: cors package + origin *; bare Express has no CORS)", async () => {
     const res = await fetch(`${base}/api/health`, {
       headers: { Origin: "https://evil.example" },
     });
     const acao = res.headers.get("access-control-allow-origin");
     assert.ok(acao === "*" || acao === "https://evil.example");
+  });
+
+  it("DEMO_GATE_TOKEN rejects requests without X-VaultPay-Demo", async () => {
+    const gated = createApp({ demoGateToken: "test-gate-token" });
+    const { server: srv, base: gatedBase } = await listen(gated.app);
+    try {
+      const denied = await fetch(`${gatedBase}/api/health`);
+      assert.equal(denied.status, 404);
+      const allowed = await fetch(`${gatedBase}/api/health`, {
+        headers: { "X-VaultPay-Demo": "test-gate-token" },
+      });
+      assert.equal(allowed.status, 200);
+    } finally {
+      await new Promise((r) => srv.close(r));
+    }
+  });
+
+  it("POST /api/demo/reset re-seeds state", async () => {
+    const before = await req("GET", "/api/users");
+    assert.ok(before.json.users.length >= 3);
+    // mutate
+    await req("PUT", "/api/users/2", {
+      headers: {
+        Authorization: `Bearer ${(await login()).token}`,
+      },
+      body: { name: "Dirty Bob" },
+    });
+    const dirty = await req("GET", "/api/users/2");
+    assert.equal(dirty.json.user.name, "Dirty Bob");
+    const reset = await req("POST", "/api/demo/reset");
+    assert.equal(reset.status, 200);
+    assert.equal(reset.json.ok, true);
+    const after = await req("GET", "/api/users/2");
+    assert.equal(after.json.user.name, "Bob Chen");
   });
 });

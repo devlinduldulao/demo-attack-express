@@ -79,7 +79,7 @@ Sister study (same app on Vercel): [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md
 ## 3. How to read the console
 
 ```text
-WHY      why this phase matters (often vs Daloy defaults)
+WHY      why this phase matters (framework-gap / misconfig / junior-code)
 »        narration — what we are about to send
 → SEND   request: method, path, auth, body size
 ← RECV   response: status, latency, size
@@ -120,8 +120,7 @@ All missing:
 - `referrer-policy`
 - `permissions-policy`
 
-**Daloy:** `secureHeaders` auto-install.  
-**Express 5:** does not add these by default.
+**kind:** `framework-gap` — Express 5 does not add these by default.
 
 ---
 
@@ -134,7 +133,6 @@ All missing:
 
 Not **413**. The server accepted and processed the huge body, then rejected credentials.
 
-**Daloy:** `bodyLimitBytes` 1 MiB → 413.
 
 ---
 
@@ -146,7 +144,6 @@ Not **413**. The server accepted and processed the huge body, then rejected cred
 | Time | **341ms** |
 | Histogram | `{"401":40}` — **zero 429** |
 
-**Daloy:** `rateLimit` / `loginThrottle`.
 
 ---
 
@@ -169,7 +166,6 @@ No auth. Escapes “public” into secrets via `../`.
 | Request | `GET /api/go?url=https://evil-phish.example/steal` |
 | Response | **302** `Location: https://evil-phish.example/steal` |
 
-**Daloy:** `safeRedirect` allowlist.
 
 ---
 
@@ -192,7 +188,6 @@ No auth. Escapes “public” into secrets via `../`.
 | `GET /api/boom` | **500** + stack (`worker.js:…`) | **MEDIUM** stack leak |
 | XSS `msg=<img onerror=alert(1)>` | **403** ~14 KB body | Console: `✓ DEFENDED` — treat as **WAF block**, not app fix |
 
-**Daloy:** prod problem+json redaction; no raw HTML echo.
 
 ---
 
@@ -205,7 +200,6 @@ No auth. Escapes “public” into secrets via `../`.
 
 No server-side request timeout budget.
 
-**Daloy:** `requestTimeoutMs` default 30s.
 
 ---
 
@@ -328,7 +322,7 @@ These do not undo the nine critical findings.
 | Login enum | One generic error message |
 | Missing headers | Secure header middleware |
 
-**DaloyJS angle:** many transport defaults (body limit, rate limit, headers, safe redirect, SSRF guard, redaction) ship closed-by-default. Ownership rules remain application code — but you do not start from bare Express 5 with JWT on one route.
+**Hardened mode (HARDENED=1) closes most transport and junior holes in plain Express; ownership rules remain app code.
 
 ---
 

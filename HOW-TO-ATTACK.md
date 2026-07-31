@@ -10,7 +10,7 @@ Complete runbook for **starting the target**, **setting environment variables**,
 | Frontend | **None** — attack hits the API URL directly |
 | Legal | Only attack systems **you own** or have written permission to test |
 
-Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md)
+Related docs: [`README.md`](README.md) · [`TALK.md`](TALK.md) · [`TEARDOWN.md`](TEARDOWN.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md)
 
 All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `tests/`), unless a step says `cd server`.
 
@@ -43,8 +43,11 @@ Cloudflare uses `wrangler.toml` `[vars]` (and optional `wrangler secret`) instea
 | --- | --- | --- | --- | --- |
 | `PORT` | No | `4000` | Node / Azure | HTTP listen port. Azure sets this automatically. |
 | `JWT_SECRET` | No | `supersecret123` | Node / Azure / CF vars | Weak signing secret (demo on purpose). |
-| `BODY_LIMIT` | No | `50mb` | Node / Azure / CF vars | Max JSON body size (huge = intentional). |
+| `BODY_LIMIT` | No | `50mb` | Node / Azure / CF vars | Max JSON body size (**misconfig** for demo — Express `json()` default is 100kb). |
 | `NODE_ENV` | No | `development` if unset | Node / Azure / CF vars | Shown in `/api/debug/config`. Use `production` on deploy. |
+| `DEMO_GATE_TOKEN` | Recommended on public deploys | unset (open) | Node / Azure / CF secret / Vercel env | When set, every request needs header `X-VaultPay-Demo: <token>` or gets 404. See [`TEARDOWN.md`](TEARDOWN.md). |
+| `HARDENED` | No | unset (vulnerable) | Node / Azure / CF vars | Set to `1` for the green run: ownership, role checks, 100kb body, secure headers, no debug leak. |
+| `DEMO_RESET_TOKEN` | No | unset | Any | If set, `POST /api/demo/reset` requires `X-VaultPay-Reset`. |
 | `CF_WORKER` | Auto | set by `worker.mjs` | Cloudflare only | Marks runtime as `cloudflare-workers` in debug config. |
 | `RUNTIME` | No | `node` | Any | Optional override for debug `runtime` label. |
 
@@ -97,11 +100,13 @@ cd ..
 
 ### 1.2 Attacker machine (Node running `attack.mjs`)
 
-The attack script takes the **URL as a CLI argument**. It does not require API secrets.
+The attack script takes the **URL as a CLI argument**. It does not require API secrets
+unless the target has `DEMO_GATE_TOKEN` enabled.
 
 | Variable | Required? | When | Purpose |
 | --- | --- | --- | --- |
 | `NODE_TLS_REJECT_UNAUTHORIZED` | Sometimes | Zscaler / corporate TLS MITM | Set to `0` if Node fails with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`. **Insecure** — demo laptops only. |
+| `DEMO_GATE_TOKEN` | When server is gated | Public gated deploys | Same value as server; alternatively pass `--gate=TOKEN`. |
 
 **Zscaler / corporate TLS-intercept laptop:**
 
@@ -132,12 +137,25 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | Flag | Meaning |
 | --- | --- |
 | (none) | Full run: wire logs on, flood on, slow probe on |
-| `--drama` | Pause between phases (best for projector talks) |
+| `--drama` | **Wait for Enter** between phases (talk control; non-TTY falls back to short sleep) |
+| `--projector` | No dim text; less wire noise (large rooms) |
+| `--reset` | `POST /api/demo/reset` before recon (warm isolate hygiene) |
+| `--gate=TOKEN` | Send `X-VaultPay-Demo` header (or set `DEMO_GATE_TOKEN` env) |
 | `--verbose` | Print response body previews on more requests |
 | `--quiet` | Less color; hide per-request wire traces |
 | `--json` | Print machine-readable findings after the report |
 | `--skip-flood` | Skip 40 parallel login burst |
 | `--skip-slow` | Skip `/api/slow?ms=3000` |
+
+One-command local:
+
+```powershell
+npm run demo              # vulnerable
+npm run demo:hardened     # green run → 0 critical
+```
+
+Findings are tagged `framework-gap` | `misconfig` | `junior-code` plus OWASP API ids.
+See [`TALK.md`](TALK.md) for how to narrate them.
 
 **Examples** (from repo root):
 
@@ -146,6 +164,7 @@ node attack/attack.mjs http://localhost:4000
 node attack/attack.mjs http://127.0.0.1:8787
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # only if TLS intercept
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --gate=talk-day-secret
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 

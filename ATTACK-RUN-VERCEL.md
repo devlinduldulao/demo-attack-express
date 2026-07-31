@@ -17,7 +17,7 @@ node attack/attack.mjs https://vaultpay-api.vercel.app --json
 **By severity:** `CRITICAL: 10` · `HIGH: 6` · `MEDIUM: 3`  
 **Platform notes:** none (unlike Cloudflare self-SSRF / noisy XSS)
 
-Raw log: [`ATTACK-RUN-VERCEL-LATEST.log`](ATTACK-RUN-VERCEL-LATEST.log)  
+Raw console captures are local-only (`ATTACK-RUN-*-LATEST.log` is gitignored).  
 Cloudflare sister study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
 
 ---

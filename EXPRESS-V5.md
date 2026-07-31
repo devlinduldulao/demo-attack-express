@@ -55,12 +55,16 @@ From the [official guide](https://expressjs.com/en/guide/migrating-5/) and [rele
 
 ---
 
-## Cloudflare Workers note
+## Cloudflare Workers note + body-limit honesty
 
-`express.json()` still pulls code that breaks under Wrangler’s Workers bundle (`iconv-lite` / `require_streams`). This demo keeps a **custom stream JSON parser** with a huge limit so:
+`express.json()` still pulls code that breaks under Wrangler’s Workers bundle (`iconv-lite` / `require_streams`). This demo keeps a **custom stream JSON parser** with a huge limit (~50 mb) so:
 
 1. Express 5 works on Workers
-2. The “no tight body limit” attack still demos
+2. The oversized-body attack still demos
+
+**Talk honesty:** Express 5 `express.json()` defaults to **100 kb** and returns **413**. The 1.5 MiB acceptance on screen is a **junior misconfig** (we replaced the safer default), **not** an Express default. The attack script labels it `misconfig` / API4. Same for production stack leaks (custom error handler vs `finalhandler` redaction) and CORS `*` (added `cors` package — bare Express has no CORS).
+
+Real Express **gaps** that remain fair to claim: no secure headers, `x-powered-by` ON, no rate limit, no request timeout, no authz primitive, no response schema.
 
 See `jsonBody()` in [`server/app.js`](server/app.js) and the `iconv-lite` alias in [`server/wrangler.toml`](server/wrangler.toml).
 

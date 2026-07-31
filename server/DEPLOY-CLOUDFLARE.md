@@ -60,16 +60,37 @@ curl http://127.0.0.1:8787/api/health
 node attack/attack.mjs http://127.0.0.1:8787 --drama
 ```
 
+## Gate public deploys (recommended)
+
+```powershell
+cd server
+npx wrangler secret put DEMO_GATE_TOKEN
+# paste a random talk-day secret
+npx wrangler deploy
+```
+
+Attack with the same token:
+
+```bash
+node attack/attack.mjs https://vaultpay-api.<you>.workers.dev --drama --gate=YOUR_TOKEN
+```
+
+After the talk: delete the Worker or leave the gate on — see [`../TEARDOWN.md`](../TEARDOWN.md).
+
 ## Attack the live Worker
 
 From the **repository root**:
 
 ```bash
 node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
+# if gated:
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --gate=YOUR_TOKEN
 
 # Free tier / softer load:
 node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --skip-flood --skip-slow
 ```
+
+`--drama` waits for **Enter** between phases (talk control).
 
 On corporate TLS intercept (e.g. Zscaler), Node may need:
 

