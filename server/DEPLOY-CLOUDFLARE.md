@@ -5,6 +5,8 @@ This API is **Express 5.x** (`express@^5.2.1`, Node.js >= 18). See
 [Express 5 migration guide](https://expressjs.com/en/guide/migrating-5/), and the
 [v5 release post](https://expressjs.com/en/blog/2024-10-15-v5-release/).
 
+There is **no SPA** in this repo. Deploy the API, then run `attack/attack.mjs` against the Worker URL.
+
 Follows Cloudflare’s official Express-on-Workers pattern
 ([Deploy an Express.js application on Cloudflare Workers](https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/)):
 
@@ -13,7 +15,7 @@ Follows Cloudflare’s official Express-on-Workers pattern
 
 ## Prerequisites
 
-1. Cloudflare account (free plan is enough for the demo)
+1. Cloudflare account (free plan is enough)
 2. Node.js 18+ (required by Express 5)
 3. One-time login:
 
@@ -42,13 +44,7 @@ Wrangler prints a URL like:
 https://vaultpay-api.<your-subdomain>.workers.dev
 ```
 
-After deploy, re-run the attack against Express 5 in production:
-
-```bash
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
-```
-
-## Local Workers runtime (same as prod)
+## Local Workers runtime
 
 ```bash
 cd server
@@ -60,21 +56,13 @@ npm run dev:cf
 curl http://127.0.0.1:8787/api/health
 # expect: "express":"5"
 
-node ../attack/attack.mjs http://127.0.0.1:8787 --skip-slow
+# from repo root:
+node attack/attack.mjs http://127.0.0.1:8787 --drama
 ```
-
-## Wire the React SPA
-
-```powershell
-cd client
-$env:VITE_API_URL="https://vaultpay-api.<your-subdomain>.workers.dev"
-npm run build
-# publish client/dist/ to GitHub Pages
-```
-
-CORS is already `*` on the API, so GitHub Pages can call the Worker with no extra config.
 
 ## Attack the live Worker
+
+From the **repository root**:
 
 ```bash
 node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
@@ -83,47 +71,51 @@ node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
 node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --skip-flood --skip-slow
 ```
 
-Notes for Workers targets:
+On corporate TLS intercept (e.g. Zscaler), Node may need:
+
+```powershell
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
+```
+
+Full runbook: [`../HOW-TO-ATTACK.md`](../HOW-TO-ATTACK.md).
+
+## Workers probe notes
 
 | Probe | Behavior |
 | --- | --- |
-| Path traversal / IDOR / JWT dump | Works (in-memory VFS + same routes) |
-| Login flood | Works; may hit platform limits — use `--skip-flood` if flaky |
-| Large body (~1.5 MiB) | Usually works; platform request limits still apply |
-| Raw TCP header probes | Skipped automatically (HTTPS) |
-| SSRF self-fetch | May return Cloudflare `1042` (platform); open proxy route still exists |
-| XSS probe | May return Cloudflare WAF `403`; Express HTML sink still present without WAF |
-| In-memory DB | Per-isolate; cold starts re-seed demo users (good for talks) |
+| Path traversal / IDOR / JWT dump | Works |
+| Login flood | Usually works; use `--skip-flood` if flaky |
+| Large body (~1.5 MiB) | Usually works |
+| Raw TCP | Skipped (HTTPS) |
+| SSRF self-fetch | May return Cloudflare `1042` |
+| XSS probe | May return Cloudflare WAF `403` |
+| In-memory DB | Resets on cold start |
 
 ## Config
 
 | File | Role |
 | --- | --- |
-| [`wrangler.toml`](wrangler.toml) | Worker name, `nodejs_compat`, HTTP server flags, vars, iconv alias |
-| [`worker.mjs`](worker.mjs) | CF entry (`httpServerHandler`) for Express 5 app |
-| [`app.js`](app.js) | Shared Express **5** app (Node + Workers + Azure) |
-| [`server.js`](server.js) | Classic Node/Azure `listen` entry (v5 error callback) |
-| [`vfs.js`](vfs.js) | In-memory files (path traversal without real disk) |
-| [`stubs/iconv-lite.js`](stubs/iconv-lite.js) | UTF-8 stub — Express body stack + Wrangler |
+| [`wrangler.toml`](wrangler.toml) | Worker name, flags, vars, iconv alias |
+| [`worker.mjs`](worker.mjs) | CF entry for Express 5 |
+| [`app.js`](app.js) | Shared Express 5 app |
+| [`server.js`](server.js) | Node / Azure listen entry |
+| [`vfs.js`](vfs.js) | Virtual FS for path traversal |
+| [`stubs/iconv-lite.js`](stubs/iconv-lite.js) | UTF-8 stub for Workers bundle |
 
 ### Why the iconv-lite stub?
 
-Express still depends on code paths that pull `iconv-lite` at import time. Under Wrangler’s
-Workers bundle that currently throws `require_streams is not a function`. The demo
-only needs UTF-8 JSON, so `wrangler.toml` aliases `iconv-lite` to a tiny stub.
-Node / Azure use the real package as usual. Body parsing uses a custom stream reader
-(`jsonBody` in `app.js`) instead of `express.json()` on Workers.
+Express import paths can pull `iconv-lite`, which breaks under Wrangler’s Workers bundle
+(`require_streams is not a function`). This demo aliases it to a UTF-8 stub and uses a
+custom JSON body reader (`jsonBody` in `app.js`).
 
-## Optional: secret instead of plain `[vars]`
-
-The demo intentionally ships a weak secret in `[vars]`. For a slightly less embarrassing (still insecure) setup:
+## Optional: secret instead of `[vars]`
 
 ```bash
 npx wrangler secret put JWT_SECRET
 # paste: supersecret123
 ```
 
-Then remove `JWT_SECRET` from the `[vars]` block in `wrangler.toml`.
+Then remove `JWT_SECRET` from `[vars]` in `wrangler.toml`.
 
 ## Logs
 
@@ -133,11 +125,10 @@ npm run cf:tail
 
 ## Azure remains supported
 
-Nothing was removed. Classic Node still runs with:
-
 ```bash
+cd server
 npm start
 # PORT from Azure App Service
 ```
 
-Use **either** Cloudflare Workers (free, global edge) **or** Azure App Service for the talk — same Express 5 app, same attack script, same SPA.
+Use **either** Cloudflare Workers or Azure App Service — same Express 5 API, same attack script.

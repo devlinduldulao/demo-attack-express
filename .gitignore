@@ -3,7 +3,6 @@ node_modules/
 **/node_modules/
 
 # builds
-client/dist/
 server/dist/
 *.log
 npm-debug.log*

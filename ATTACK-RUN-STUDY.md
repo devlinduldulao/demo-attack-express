@@ -238,7 +238,7 @@ Different messages → free user discovery.
 | --- | --- |
 | Login Alice | **200** + JWT (the “we’re secured” moment) |
 | `GET /api/orders` with Alice JWT | **5 orders / 4 users**, including payroll **$50 000** → BOLA |
-| Register disposable attacker | New user id (e.g. #5) so seed SPA accounts stay usable |
+| Register disposable attacker | New user id so seed demo accounts stay usable for re-runs |
 | `PUT` `role: "admin"`, `balance: 1000000` | Mass assignment → **CRITICAL** |
 | `PUT` another user id as attacker | Cross-user write → **CRITICAL** |
 | `GET /api/admin/stats` | Plaintext **passwords** for all accounts → **CRITICAL** |
@@ -333,7 +333,7 @@ These do not undo the nine critical findings.
 
 ## 9. Five-minute talk path
 
-1. SPA: login Alice, show **JWT secured**.  
+1. Browser or curl: `GET /api/health` → `"express":"5"`. “Express 5 + JWT API, public.”  
 2. Phase 10 LOOT — cards and SSNs, no token.  
 3. Path traversal → `supersecret123`.  
 4. Phase 12: BOLA payroll → mass-assign admin → forge admin JWT.  

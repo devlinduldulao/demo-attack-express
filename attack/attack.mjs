@@ -833,7 +833,7 @@ async function phaseAuthzAndForgery() {
     record("CRITICAL", "BOLA on /api/orders", "Authn present, authz missing");
   }
 
-  narrate("Register a disposable attacker so we do not break SPA seed accounts…");
+  narrate("Register a disposable attacker so seed demo accounts stay intact…");
   const regEmail = `pwned-${Date.now()}@evil.test`;
   const reg = await http("POST", "/api/auth/register", {
     body: { email: regEmail, password: "Attacker1!", name: "Attacker" },
@@ -967,7 +967,7 @@ async function phaseSettingsMerge() {
     info(`settings probe → ${put.status}`);
   }
   if (before.json?.settings) {
-    narrate("Restoring previous settings so the SPA demo stays clean…");
+    narrate("Restoring previous settings for a clean re-run…");
     await http("PUT", "/api/settings", {
       body: before.json.settings,
       label: "settings-restore",
