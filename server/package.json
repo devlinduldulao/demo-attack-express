@@ -23,7 +23,7 @@
     "test:attack": "node --test ../tests/attack-probes.test.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "dependencies": {
     "cors": "^2.8.6",
