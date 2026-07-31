@@ -5,30 +5,34 @@ Complete runbook for **starting the target**, **setting environment variables**,
 | Item | Value |
 | --- | --- |
 | Target app | Intentionally vulnerable **Express 5** + JWT API |
-| Attacker | `demo-attack-express/attack/attack.mjs` (Node 18+, no extra deps) |
+| Attacker | `attack/attack.mjs` (Node 18+, no extra deps) |
 | Live example | `https://vaultpay-api.devlinduldulao.workers.dev` |
 | Legal | Only attack systems **you own** or have written permission to test |
 
 Related docs: [`README.md`](README.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md)
+
+All commands below assume you are at the **repository root** of this project (the folder that contains `server/`, `client/`, and `attack/`), unless a step says `cd server` or `cd client`.
 
 ---
 
 ## 0. Prerequisites
 
 1. **Node.js >= 18** (`node -v`)
-2. Repo folder: `demo-attack-express/`
+2. Clone or open **this repo** (standalone; not nested under another monorepo)
 3. Install API deps once:
 
 ```powershell
-cd demo-attack-express/server
+cd server
 npm install
+cd ..
 ```
 
 4. (Optional) SPA for the “JWT secured” visual:
 
 ```powershell
-cd demo-attack-express/client
+cd client
 npm install
+cd ..
 ```
 
 5. Attack script needs **no** `npm install` (uses built-in `fetch` + `crypto`).
@@ -51,7 +55,7 @@ Cloudflare uses `wrangler.toml` `[vars]` (and optional `wrangler secret`) instea
 | `CF_WORKER` | Auto | set by `worker.mjs` | Cloudflare only | Marks runtime as `cloudflare-workers` in debug config. |
 | `RUNTIME` | No | `node` | Any | Optional override for debug `runtime` label. |
 
-**Node local `.env` example** (optional — Node does not load `.env` automatically unless you use a loader; easiest is session env):
+**Node local session env** (optional — defaults already work for the demo):
 
 ```powershell
 # PowerShell (current terminal only)
@@ -69,7 +73,7 @@ export BODY_LIMIT=50mb
 export NODE_ENV=development
 ```
 
-**Cloudflare `wrangler.toml` (already in repo):**
+**Cloudflare `server/wrangler.toml` (already in repo):**
 
 ```toml
 [vars]
@@ -81,10 +85,11 @@ NODE_ENV = "production"
 Optional secret instead of plaintext `[vars]`:
 
 ```powershell
-cd demo-attack-express/server
+cd server
 npx wrangler secret put JWT_SECRET
 # paste: supersecret123
 # then remove JWT_SECRET from [vars] in wrangler.toml
+cd ..
 ```
 
 **Azure App Service application settings:**
@@ -111,28 +116,31 @@ Vite inlines these at **build** time (not runtime).
 **Local SPA + local API (proxy, no env needed):**
 
 ```powershell
-cd demo-attack-express/client
+cd client
 npm run dev
 # Vite proxies /api → http://localhost:4000
+# open http://localhost:5173
 ```
 
 **Build SPA against live Cloudflare Worker:**
 
 ```powershell
-cd demo-attack-express/client
+cd client
 $env:VITE_API_URL = "https://vaultpay-api.devlinduldulao.workers.dev"
 # Optional project pages:
 # $env:VITE_BASE = "/your-repo-name/"
 npm run build
 # publish client/dist/ to GitHub Pages
+cd ..
 ```
 
 ```bash
 # bash
-cd demo-attack-express/client
+cd client
 export VITE_API_URL=https://vaultpay-api.devlinduldulao.workers.dev
 # export VITE_BASE=/your-repo-name/
 npm run build
+cd ..
 ```
 
 ---
@@ -146,10 +154,10 @@ The attack script takes the **URL as a CLI argument**. It does not require API s
 | `NODE_TLS_REJECT_UNAUTHORIZED` | Sometimes | Zscaler / corporate TLS MITM | Set to `0` if Node fails with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`. **Insecure** — demo laptops only. |
 | `NODE_OPTIONS` | No | Rare | e.g. debug; not needed for the demo. |
 
-**Zscaler / Crayon-style laptop (this repo’s known case):**
+**Zscaler / corporate TLS-intercept laptop:**
 
 ```powershell
-# Node does not trust Zscaler’s intercept cert; Windows PowerShell does.
+# Node does not trust the intercept CA; Windows PowerShell often does.
 # Only for attacking YOUR demo host from this machine:
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
@@ -185,7 +193,7 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | `--skip-flood` | Skip 40 parallel login burst (gentler on free tiers) |
 | `--skip-slow` | Skip `/api/slow?ms=3000` |
 
-**Examples:**
+**Examples** (from repo root):
 
 ```powershell
 # Local Node API
@@ -202,10 +210,9 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 
-From repo root helper scripts:
+If root `package.json` defines helper scripts:
 
 ```powershell
-cd demo-attack-express
 npm run attack:local
 # or
 npm run attack -- https://vaultpay-api.devlinduldulao.workers.dev --drama
@@ -218,7 +225,7 @@ npm run attack -- https://vaultpay-api.devlinduldulao.workers.dev --drama
 ### Step A1 — Start the API
 
 ```powershell
-cd demo-attack-express/server
+cd server
 
 # Optional env (defaults work for the demo)
 $env:PORT = "4000"
@@ -239,7 +246,7 @@ Express:     5.x
 ### Step A2 — Smoke check
 
 ```powershell
-# New terminal
+# New terminal (repo root or anywhere)
 Invoke-RestMethod http://localhost:4000/api/health
 # expect: ok=true, express=5
 ```
@@ -247,7 +254,8 @@ Invoke-RestMethod http://localhost:4000/api/health
 ### Step A3 — (Optional) SPA
 
 ```powershell
-cd demo-attack-express/client
+# New terminal, repo root
+cd client
 npm run dev
 # open http://localhost:5173
 # login: alice@example.com / password123
@@ -256,7 +264,7 @@ npm run dev
 ### Step A4 — Attack
 
 ```powershell
-cd demo-attack-express
+# New terminal, repo root
 node attack/attack.mjs http://localhost:4000 --drama
 ```
 
@@ -273,18 +281,18 @@ Ctrl+C the server (and Vite if running).
 ### Step B1 — Start Wrangler
 
 ```powershell
-cd demo-attack-express/server
+cd server
 npm install
 npm run dev:cf
 # Ready on http://127.0.0.1:8787
 ```
 
-Vars come from `wrangler.toml` `[vars]` (`JWT_SECRET`, `BODY_LIMIT`, `NODE_ENV`).
+Vars come from `server/wrangler.toml` `[vars]` (`JWT_SECRET`, `BODY_LIMIT`, `NODE_ENV`).
 
 ### Step B2 — Attack
 
 ```powershell
-cd demo-attack-express
+# New terminal, repo root
 node attack/attack.mjs http://127.0.0.1:8787 --drama
 ```
 
@@ -297,17 +305,19 @@ No TLS bypass needed (HTTP localhost).
 ### Step C1 — Login (once per machine)
 
 ```powershell
-cd demo-attack-express/server
+cd server
 npx wrangler login
 npx wrangler whoami
+cd ..
 ```
 
 ### Step C2 — Deploy Express 5
 
 ```powershell
-cd demo-attack-express/server
+cd server
 npm install
 npx wrangler deploy
+cd ..
 ```
 
 Note the printed URL, e.g.:
@@ -326,7 +336,7 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 ### Step C4 — Attack (with env if needed)
 
 ```powershell
-cd demo-attack-express
+# Repo root
 
 # ONLY if Node fails with certificate errors (Zscaler / corporate MITM):
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
@@ -370,11 +380,12 @@ Study of a real live run: [`ATTACK-RUN-STUDY.md`](ATTACK-RUN-STUDY.md).
 | `NODE_ENV` | `production` |
 | Startup | `node server.js` |
 
-Deploy the **`server/`** folder (with `node_modules` or build during deploy).
+Deploy the **`server/`** folder (with `node_modules` or SCM build during deploy).
 
 ### Step D2 — Attack
 
 ```powershell
+# Repo root
 # Zscaler laptop only if cert errors:
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
@@ -384,9 +395,10 @@ node attack/attack.mjs https://YOUR-APP.azurewebsites.net --drama
 ### Step D3 — SPA against Azure
 
 ```powershell
-cd demo-attack-express/client
+cd client
 $env:VITE_API_URL = "https://YOUR-APP.azurewebsites.net"
 npm run build
+cd ..
 ```
 
 ---
@@ -431,10 +443,13 @@ Use this while watching the console:
 ## 9. One-page “talk day” checklist
 
 ```powershell
+# From this repository root (folder with server/, client/, attack/)
+
 # 1) Deploy latest Express 5 (if code changed)
-cd C:\Users\DEVDUL\Documents\GitHub\daloy\demo-attack-express\server
+cd server
 npm install
 npx wrangler deploy
+cd ..
 
 # 2) Confirm
 Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
@@ -442,8 +457,7 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 # 3) Optional: open SPA (built with VITE_API_URL pointing at the Worker)
 #    Login as Alice for the "JWT secured" visual
 
-# 4) Attack (Zscaler laptop)
-cd C:\Users\DEVDUL\Documents\GitHub\daloy\demo-attack-express
+# 4) Attack (Zscaler laptop only if cert errors)
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 
@@ -458,7 +472,7 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 | --- | --- |
 | `fetch failed` / `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` | `$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"` (corporate TLS). Or install org root CA into Node. |
 | `Cannot reach` / connection refused | API not running; wrong URL/port; cold start — hit `/api/health` first. |
-| Wrangler not logged in | `npx wrangler login` |
+| Wrangler not logged in | `cd server; npx wrangler login` |
 | Health works but SPA cannot call API | Rebuild SPA with correct `VITE_API_URL`; check CORS (demo uses `*`). |
 | Attack shows few findings | Wrong host; WAF in front; not the VaultPay demo. |
 | SSRF not CRITICAL on Workers | Expected CF `1042` on self-fetch — see study guide. |
@@ -477,15 +491,15 @@ $env:PORT = "4000"
 $env:JWT_SECRET = "supersecret123"
 $env:BODY_LIMIT = "50mb"
 $env:NODE_ENV = "development"
-cd demo-attack-express/server
+cd server
 npm start
 ```
 
 ### Attacker session (live CF + Zscaler)
 
 ```powershell
+# Repo root
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-cd demo-attack-express
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 ```
 
@@ -494,8 +508,9 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 ```powershell
 $env:VITE_API_URL = "https://vaultpay-api.devlinduldulao.workers.dev"
 # $env:VITE_BASE = "/optional-repo-name/"
-cd demo-attack-express/client
+cd client
 npm run build
+cd ..
 ```
 
 ### Clear TLS bypass after the talk

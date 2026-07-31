@@ -80,18 +80,17 @@ This is **not** a full DDoS tool. The “flood” phase is a short parallel burs
 
 ```bash
 # API
-cd demo-attack-express/server && npm install && npm start
+cd server && npm install && npm start
 
 # SPA (other terminal)
-cd demo-attack-express/client && npm install && npm run dev
+cd client && npm install && npm run dev
 
 # Tests (other terminal)
-cd demo-attack-express/server && npm test
+cd server && npm test
 
-# Attack
-cd demo-attack-express
+# Attack (from repo root)
 node attack/attack.mjs http://localhost:4000
-# gentler on free Azure:
+# gentler on free Azure / Cloudflare:
 node attack/attack.mjs https://YOUR-APP.azurewebsites.net --skip-flood --skip-slow
 ```
 
@@ -106,7 +105,7 @@ node attack/attack.mjs https://YOUR-APP.azurewebsites.net --skip-flood --skip-sl
 ## Tests
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm test
 ```
 
@@ -128,7 +127,7 @@ Uses the official Express-on-Workers pattern
 Full notes: [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md).
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm install
 npx wrangler login          # once
 npm run deploy:cf           # → https://vaultpay-api.<you>.workers.dev
@@ -161,7 +160,7 @@ Deploy the **`server/`** folder (Node 18+, Linux Free F1 is enough).
 ### React → GitHub Pages
 
 ```powershell
-cd demo-attack-express/client
+cd client
 $env:VITE_API_URL="https://YOUR-APP.azurewebsites.net"
 # project pages only:
 # $env:VITE_BASE="/your-repo-name/"
@@ -176,7 +175,8 @@ CORS is `*` on purpose so Pages → Azure works without extra config.
 ## Project layout
 
 ```text
-demo-attack-express/
+.
+  HOW-TO-ATTACK.md          # step-by-step attack runbook + env vars
   EXPRESS-V5.md             # Express 4 → 5 notes for this demo
   ATTACK-RUN-STUDY.md       # study guide for a real Workers attack log
   attack/attack.mjs         # theatrical black-box attacker
@@ -210,8 +210,7 @@ Full runbook with every environment variable, local / Cloudflare / Azure paths, 
 Quick live attack (after deploy):
 
 ```powershell
-cd demo-attack-express
-# Corporate TLS intercept (Zscaler) only if Node cert errors:
+# From repo root. Corporate TLS intercept (Zscaler) only if Node cert errors:
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
 ```

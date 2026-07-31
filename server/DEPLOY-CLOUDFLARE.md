@@ -18,7 +18,7 @@ Follows Cloudflare’s official Express-on-Workers pattern
 3. One-time login:
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm install
 npx wrangler login
 ```
@@ -26,14 +26,13 @@ npx wrangler login
 ## One-command deploy
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm run deploy:cf
 ```
 
-Or from the demo root:
+Or from the repository root:
 
 ```bash
-cd demo-attack-express
 npm run deploy:cf
 ```
 
@@ -52,7 +51,7 @@ node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
 ## Local Workers runtime (same as prod)
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm run dev:cf
 # → http://127.0.0.1:8787
 ```
@@ -67,7 +66,7 @@ node ../attack/attack.mjs http://127.0.0.1:8787 --skip-slow
 ## Wire the React SPA
 
 ```powershell
-cd demo-attack-express/client
+cd client
 $env:VITE_API_URL="https://vaultpay-api.<your-subdomain>.workers.dev"
 npm run build
 # publish client/dist/ to GitHub Pages
@@ -78,10 +77,10 @@ CORS is already `*` on the API, so GitHub Pages can call the Worker with no extr
 ## Attack the live Worker
 
 ```bash
-node demo-attack-express/attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama
 
 # Free tier / softer load:
-node demo-attack-express/attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --skip-flood --skip-slow
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --skip-flood --skip-slow
 ```
 
 Notes for Workers targets:

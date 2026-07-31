@@ -75,7 +75,7 @@ See `jsonBody()` in [`server/app.js`](server/app.js) and the `iconv-lite` alias 
 ## Verify
 
 ```bash
-cd demo-attack-express/server
+cd server
 npm install
 npm test
 npm start
