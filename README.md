@@ -35,14 +35,14 @@ Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrati
 | Platform comparison CF vs Vercel | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) | Differentiator block |
 | Post-talk teardown / gate | [`TEARDOWN.md`](TEARDOWN.md) | **Do this** after the talk |
 
-**Live demos (Express 5, same app source):**
+**Live demos (Express 5, same app source, vulnerable mode):**
 
-| Platform | URL | Attack study |
-| --- | --- | --- |
-| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
-| Vercel serverless | https://vaultpay-api.vercel.app | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+| Platform | URL | Latest engagement (2026-07-31) | Study |
+| --- | --- | --- | --- |
+| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | **9** critical · 68 req · 4.6s | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
+| Vercel serverless | https://vaultpay-api.vercel.app | **10** critical · 67 req · 10.0s | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
 
-Both deploys were **local CLI → cloud** (no GitHub integration required).
+Both deploys were **local CLI → cloud**. Comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
 
 > **Educational only.** Only point the attack script at instances **you** deployed.
 > Public open-proxy / XSS sinks are abuse risk — gate or tear down ([`TEARDOWN.md`](TEARDOWN.md)).

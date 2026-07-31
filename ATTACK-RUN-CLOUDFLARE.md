@@ -2,20 +2,24 @@
 
 **Target:** `https://vaultpay-api.devlinduldulao.workers.dev`  
 **Stack under test:** **Express 5** + JWT (intentionally vulnerable VaultPay demo)  
-**Health proof:** `GET /api/health` → `"express":"5"`  
-**Attack started:** 2026-07-31T17:50:28Z  
-**Command:**
+**Deployed:** 2026-07-31 (local `wrangler deploy` from current `server/` — health returns `"hardened":false`)  
+**Attack started:** 2026-07-31T20:07:51Z  
+**Attacker flags:** `--reset --json` (full flood + slow; no gate)
 
 ```powershell
-# From this repo root
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+# From this repo root (Zscaler laptop only if cert errors)
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
 ```
 
-**Result:** `DEMO RESULT: API PWNED — 9 critical findings · 68 requests`  
-**By severity:** `CRITICAL: 9` · `HIGH: 5` · `MEDIUM: 4`
+**Result:** `DEMO RESULT: API PWNED — 9 critical findings · 68 requests · 4.6s`  
+**By severity:** `CRITICAL: 9` · `HIGH: 7` · `MEDIUM: 4` · `INFO: 1` (21 findings)  
+**By kind:** `junior-code: 15` · `framework-gap: 4` · `misconfig: 2`  
+**OWASP API:** API1, API2, API3, API4, API5, API7, API8  
+**Loot:** 4 users, 5 orders, JWT secret `supersecret123`, privilege esc **YES**, forged admin **YES**
 
-This document studies **only Express 5** on **Cloudflare Workers**.  
-Sister study (same app on Vercel): [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
+Raw console capture (local only, gitignored): `ATTACK-RUN-CLOUDFLARE-LATEST.log`  
+Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
 
 ---
 
@@ -23,394 +27,117 @@ Sister study (same app on Vercel): [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md
 
 | Question | Answer |
 | --- | --- |
-| Is production Express 5? | **Yes.** Live health returns `"express":"5"`. Banner says `Express 5 target`. |
+| Is production Express 5? | **Yes.** Health: `"express":"5"`, `"hardened":false`. |
 | Did JWT make the API “secure”? | **No.** Most damage needed **no password**. |
-| Did the demo work? | **Yes.** PII dump, secret theft, BOLA, mass assignment, forged admin. |
-| What underperformed? | **Cloudflare platform** blocked two probes (SSRF self-fetch `1042`, XSS WAF `403`). Not Express learning security. |
-
-**Talk sound bite:**
-
-> “This is Express 5 on Cloudflare with JWT. Without logging in we stole every card number and the signing secret. Then we forged an admin token. Authn is not authz.”
+| Did the demo work after code refresh? | **Yes.** Reset → PII → secret → BOLA → mass-assign → **forged admin last**. |
+| What underperformed? | **Cloudflare platform** blocked self-SSRF (`1042`). Mild HTML echo still proved the XSS sink. Not Express learning security. |
+| Honest labels? | Body limit + stack leak = **misconfig**. Headers / flood / timeout / x-powered-by = **framework-gap**. JWT chain = **junior-code**. |
 
 ---
 
-## 2. Scoreboard
+## 2. Phase order (current attack script)
 
-| Metric | Value |
-| --- | --- |
-| HTTP requests | 68 |
-| Findings recorded | 18 |
-| Users stolen (seed) | 4 |
-| Orders stolen | 5 |
-| JWT secret | `supersecret123` |
-| Privilege escalation | YES |
-| Forged admin | YES |
+Climax is **last** (Phase 15). Settings + raw TCP are no longer after forgery.
 
-### All findings (as printed)
-
-| # | Severity | Title |
+| Phase | Title | Outcome on CF (this run) |
 | --- | --- | --- |
-| 1 | MEDIUM | No secure response headers |
-| 2 | HIGH | Oversized JSON body accepted (no tight bodyLimit) |
-| 3 | HIGH | No rate limiting on authentication |
-| 4 | CRITICAL | Path traversal reads server secret files |
-| 5 | HIGH | Open redirect |
-| 6 | MEDIUM | Production-style stack traces exposed |
-| 7 | MEDIUM | No requestTimeoutMs — slow handlers hold sockets |
-| 8 | CRITICAL | Unauthenticated user dump |
-| 9 | CRITICAL | IDOR on `/api/users/:id` without auth |
-| 10 | CRITICAL | Debug endpoint leaks JWT signing secret |
-| 11 | HIGH | Unauthenticated PII search |
-| 12 | MEDIUM | Login error messages enable account enumeration |
-| 13 | CRITICAL | BOLA on `/api/orders` |
-| 14 | CRITICAL | Mass assignment privilege escalation |
-| 15 | CRITICAL | Cross-user write without ownership check |
-| 16 | CRITICAL | Admin route checks login only, not role |
-| 17 | CRITICAL | Forged JWTs accepted (weak/leaked secret) |
-| 18 | HIGH | Unauthenticated settings write with mass assignment |
-
-**Not recorded as findings (platform interference):**
-
-- Phase 07 SSRF self-proxy (CF `error code: 1042`)
-- Phase 08 XSS HTML echo (CF **403**; script printed `DEFENDED / OK` — misleading)
+| 01 | Demo reset | `POST /api/demo/reset` → ok (clean Alice/Bob) |
+| 02 | Recon | Health 200, `hardened=false` |
+| 03 | Missing secure headers | **MEDIUM** framework-gap + **INFO** x-powered-by |
+| 04 | Oversized body (~1.5 MiB) | **HIGH** misconfig (401, not 413) |
+| 05 | Login flood ×40 | **HIGH** framework-gap — histogram `{"401":40}`, 0×429, ~404 ms |
+| 06 | Path traversal | **CRITICAL** API1 — `JWT_SECRET=supersecret123` |
+| 07 | Open redirect | **HIGH** API8 |
+| 08 | Open proxy / SSRF | Self → **◇ PLATFORM** 1042; external example.com → **HIGH** API7 |
+| 09 | Stack + HTML echo | Stack **MEDIUM** misconfig; mild HTML **HIGH** junior-code (no WAF on mild) |
+| 10 | Slow handler | **MEDIUM** framework-gap (~3 s hang) |
+| 11 | Unauth data theft | **CRITICAL** dump, IDOR, debug secret; **HIGH** PII search |
+| 12 | Account enumeration | **MEDIUM** API2 |
+| 13 | Unauth settings write | **HIGH** API3 |
+| 14 | Raw TCP | Skipped (HTTPS) |
+| 15 | Login, BOLA, mass-assign, admin, **forge** | **CRITICAL** ×5 — ends on forged admin JWT |
 
 ---
 
 ## 3. How to read the console
 
 ```text
-WHY      why this phase matters (framework-gap / misconfig / junior-code)
-»        narration — what we are about to send
-→ SEND   request: method, path, auth, body size
-← RECV   response: status, latency, size
-✗ / ✓    verdict for this probe
-LOOT     stolen or sensitive material
-[SEV]    finding added to the engagement report
-scoreboard  running CRITICAL / HIGH / MEDIUM counts
+WHY      intent (framework-gap / misconfig / junior-code)
+»        narration
+→ SEND   request
+← RECV   response
+✗ APP HOLE / ◇ PLATFORM / ✓ OK
+LOOT     stolen material
+[SEV] [APIn] (kind)  finding title
+scoreboard  running counts
 ```
 
-`✓ DEFENDED / OK` sometimes means “this probe did not fire,” not “Express is secure” (especially the XSS 403).
+Thesis line on banner:
+
+> JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.
 
 ---
 
-## 4. Phase-by-phase (this run)
+## 4. Finding inventory (this run)
 
-### Phase 01 — Recon
+### CRITICAL (9)
 
-| | |
-| --- | --- |
-| `GET /api/health` | **200** in 142ms |
-| Body | `{"ok":true,"service":"vaultpay-api","express":"5",...}` |
-| `GET /` | Self-describes routes (login, users, files, proxy, go) |
-
-**Note:** `NODE_TLS_REJECT_UNAUTHORIZED=0` warning means the attacker machine is behind TLS intercept (e.g. Zscaler). Demo laptop only.
-
-**Takeaway:** Live target is Express 5; it advertises its own attack surface.
-
----
-
-### Phase 02 — Missing security headers → **MEDIUM**
-
-All missing:
-
-- `x-content-type-options`
-- `x-frame-options`
-- `content-security-policy`
-- `strict-transport-security`
-- `referrer-policy`
-- `permissions-policy`
-
-**kind:** `framework-gap` — Express 5 does not add these by default.
-
----
-
-### Phase 03 — Oversized JSON body → **HIGH**
-
-| | |
-| --- | --- |
-| Request | `POST /api/auth/login` body **1 572 908 B** (~1.5 MiB) |
-| Response | **401** in 301ms — `No account for that email` |
-
-Not **413**. The server accepted and processed the huge body, then rejected credentials.
-
-
----
-
-### Phase 04 — Login flood → **HIGH**
-
-| | |
-| --- | --- |
-| Load | 40 parallel wrong passwords |
-| Time | **341ms** |
-| Histogram | `{"401":40}` — **zero 429** |
-
-
----
-
-### Phase 05 — Path traversal → **CRITICAL** ★
-
-| | |
-| --- | --- |
-| Legit | `GET /api/files?name=welcome.txt` → 200 (expected) |
-| Attack | `GET /api/files?name=../secrets/jwt-backup.txt` → **200** |
-| LOOT | `JWT_SECRET=supersecret123`, recovery code, fake DB string |
-
-No auth. Escapes “public” into secrets via `../`.
-
----
-
-### Phase 06 — Open redirect → **HIGH**
-
-| | |
-| --- | --- |
-| Request | `GET /api/go?url=https://evil-phish.example/steal` |
-| Response | **302** `Location: https://evil-phish.example/steal` |
-
-
----
-
-### Phase 07 — Open proxy / SSRF → **underperformed (Cloudflare)**
-
-| | |
-| --- | --- |
-| Request | Proxy to own URL `…/api/debug/config` |
-| Response | **404** body `error code: 1042` |
-| Finding | None recorded |
-
-**Honest narration:** Cloudflare blocked Worker self-fetch (1042). That is **platform**, not Express 5 fixing SSRF. The open-proxy route still exists; the JWT secret was still stolen in phases 05 and 10 without any proxy.
-
----
-
-### Phase 08 — Stack leak + XSS → **mixed**
-
-| Probe | Result | Finding |
+| Finding | kind | OWASP |
 | --- | --- | --- |
-| `GET /api/boom` | **500** + stack (`worker.js:…`) | **MEDIUM** stack leak |
-| XSS `msg=<img onerror=alert(1)>` | **403** ~14 KB body | Console: `✓ DEFENDED` — treat as **WAF block**, not app fix |
+| Path traversal reads server secret files | junior-code | API1 |
+| Unauthenticated user dump | junior-code | API1 |
+| IDOR on `/api/users/:id` without auth | junior-code | API1 |
+| Debug endpoint leaks JWT signing secret | junior-code | API8 |
+| BOLA on `/api/orders` | junior-code | API1 |
+| Mass assignment privilege escalation | junior-code | API3 |
+| Cross-user write without ownership check | junior-code | API1 |
+| Admin route checks login only, not role | junior-code | API5 |
+| Forged JWTs accepted (weak/leaked secret) | junior-code | API2 |
 
+### HIGH (7)
 
----
+| Finding | kind | OWASP | Notes |
+| --- | --- | --- | --- |
+| Demo misconfig: custom parser ~50mb | misconfig | API4 | Express `json()` default is 100kb |
+| No rate limiting on authentication | framework-gap | API4 | 40×401, zero 429 |
+| Open redirect | junior-code | API8 | |
+| Open proxy external fetch | junior-code | API7 | Self blocked by CF 1042 |
+| HTML echo XSS class (mild) | junior-code | API8 | `<b>vaultpay-reflected</b>` |
+| Unauthenticated PII search | junior-code | API3 | |
+| Unauthenticated settings write | junior-code | API3 | |
 
-### Phase 09 — Slow handler → **MEDIUM**
+### MEDIUM (4) + INFO (1)
 
-| | |
-| --- | --- |
-| Request | `GET /api/slow?ms=3000` |
-| Result | **200** after **3029ms** |
-
-No server-side request timeout budget.
-
-
----
-
-### Phase 10 — Unauthenticated data theft → **main scare** ★
-
-| Request | Result |
-| --- | --- |
-| `GET /api/users` no auth | **200** — 4 accounts, SSN + full card + CVV |
-| `GET /api/users/1` no auth | Alice PII + internal note |
-| `GET /api/debug/config` | `jwtSecret`, feature flags all false |
-| `GET /api/search?q=oslo` | Alice + Bob addresses + SSNs → **HIGH** |
-
-Scoreboard after this block: **4 critical** (plus prior highs/mediums), secret already YES from traversal.
-
----
-
-### Phase 11 — Account enumeration → **MEDIUM**
-
-| Case | Error string |
-| --- | --- |
-| Missing email | `No account for that email` |
-| Wrong password | `Incorrect password` |
-
-Different messages → free user discovery.
-
----
-
-### Phase 12 — Login, BOLA, mass assignment, admin, forge → **CRITICAL chain** ★
-
-| Step | What happened |
-| --- | --- |
-| Login Alice | **200** + JWT (the “we’re secured” moment) |
-| `GET /api/orders` with Alice JWT | **5 orders / 4 users**, including payroll **$50 000** → BOLA |
-| Register disposable attacker | New user id so seed demo accounts stay usable for re-runs |
-| `PUT` `role: "admin"`, `balance: 1000000` | Mass assignment → **CRITICAL** |
-| `PUT` another user id as attacker | Cross-user write → **CRITICAL** |
-| `GET /api/admin/stats` | Plaintext **passwords** for all accounts → **CRITICAL** |
-| Forge HS256 admin JWT with `supersecret123` | `/api/me` accepts as VaultPay Admin → **CRITICAL** |
-
-**Talk line:** JWT answered “who?”. Nothing asked “allowed?”. Then we did not even need their password.
-
----
-
-### Phase 13 — Unauth settings write → **HIGH**
-
-`PUT /api/settings` without token set `theme=pwned`, `injected=true`. Script restored settings afterward.
-
----
-
-### Phase 14 — Raw TCP → skipped
-
-HTTPS target → raw socket probes skipped (expected).
-
----
-
-## 5. Demo expectations vs this Express 5 run
-
-| Expectation | Met? | Notes |
+| Finding | kind | OWASP |
 | --- | --- | --- |
-| Express 5 in production | Yes | Health `"express":"5"` |
-| JWT alone insufficient | Yes | Phases 10–12 |
-| Steal PII without login | Yes | Phase 10 |
-| Steal JWT secret | Yes | Path traversal + debug |
-| Priv-esc + forge admin | Yes | Phase 12 |
-| SSRF self-proxy CRITICAL | No | CF **1042** |
-| XSS sink HIGH | No | CF WAF **403** |
-| Rate limit absence | Yes | 40× 401, 0× 429 |
-| Body limit absence | Yes | 1.5 MiB → 401 not 413 |
-| Open redirect | Yes | 302 to evil host |
-
-**Overall grade: success** for the teaching story. Be honest on stage about the two Cloudflare platform blocks.
+| No application secure-headers middleware | framework-gap | API8 |
+| Custom error handler leaks stack | misconfig | API8 |
+| No application request-timeout budget | framework-gap | API4 |
+| Login error enumeration | junior-code | API2 |
+| X-Powered-By: Express left enabled | framework-gap | — |
 
 ---
 
-## 6. Environment notes (attacker laptop)
-
-| Issue | Detail |
-| --- | --- |
-| TLS warning | `NODE_TLS_REJECT_UNAUTHORIZED=0` — corporate MITM (e.g. Zscaler). Node lacks the org CA. |
-| When to set it | Only if `fetch failed` / `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` |
-| Clean network | Leave the variable unset |
-
-```powershell
-# Only if needed
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-```
-
----
-
-## 7. Script labeling issues (cosmetic)
-
-| Issue | Evidence | Ideal improvement |
-| --- | --- | --- |
-| SSRF silent on 1042 | Only `· Proxy probe → 404` | Fallback external open-proxy; record INFO/HIGH |
-| XSS marked DEFENDED on 403 | `✓ DEFENDED / OK` | Label **PLATFORM BLOCKED** |
-| Flood request IDs jump | `#4` → `#45` | Print collapsed range |
-
-These do not undo the nine critical findings.
-
----
-
-## 8. What to fix in a real product
-
-| Hole seen live | Real fix |
-| --- | --- |
-| Public users / IDOR | Auth + ownership checks |
-| Debug secret public | Remove in prod; never echo secrets |
-| Path traversal files | Contain paths; or do not take user file paths |
-| BOLA orders | Filter by `req.user.sub` (or admin role) |
-| Mass assignment | Allowlist fields; never trust client `role` |
-| Admin without role check | `requireRole("admin")` |
-| Weak JWT secret | Long random secret or asymmetric keys |
-| No rate limit | Login throttle + IP limits |
-| Huge body | Hard body cap (e.g. 1 MiB) |
-| Open redirect | Allowlist destinations |
-| Open proxy | No arbitrary server-side fetch; SSRF-safe defaults |
-| Stacks in JSON | Prod redaction |
-| HTML echo | Encode; do not serve user input as HTML |
-| Login enum | One generic error message |
-| Missing headers | Secure header middleware |
-
-**Hardened mode (HARDENED=1) closes most transport and junior holes in plain Express; ownership rules remain app code.
-
----
-
-## 9. Five-minute talk path
-
-1. Browser or curl: `GET /api/health` → `"express":"5"`. “Express 5 + JWT API, public.”  
-2. Phase 10 LOOT — cards and SSNs, no token.  
-3. Path traversal → `supersecret123`.  
-4. Phase 12: BOLA payroll → mass-assign admin → forge admin JWT.  
-5. 15s honesty: “Express 5 on Cloudflare. WAF blocked XSS; CF blocked self-SSRF. The database still emptied.”  
-6. Close: Authn ≠ authz; defaults matter.
-
----
-
-## 10. Reproduce
-
-Repo lives next to `daloy`:
+## 5. Platform note (only CF difference that matters)
 
 ```text
-Documents/GitHub/daloy/
-Documents/GitHub/demo-attack-express/   ← this project
+◇ PLATFORM  Self-fetch blocked by Cloudflare (error 1042) — not app authz
 ```
 
-From **this** repo root:
+- Self-URL via `/api/proxy` → **404** body `error code: 1042`  
+- Fallback `https://example.com/` → **200** open proxy (**HIGH**, not CRITICAL self-SSRF)  
+- On Vercel, the same self-proxy is **CRITICAL** (returns `jwtSecret`)
 
-```powershell
-# Optional: redeploy Express 5 API
-cd server
-npm install
-npx wrangler deploy
-cd ..
-
-# Confirm
-Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
-# expect: express = 5
-
-# Attack (Zscaler only if cert errors)
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-```
-
-From **daloy** workspace:
-
-```powershell
-cd ../demo-attack-express
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-```
-
-Full env/runbook: [`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md).  
-**Projector slide (Cloudflare edge vs app):** [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md).
+Mild HTML echo was **not** WAF-blocked on this run (unlike older noisy `onerror=alert` probes).
 
 ---
 
-## 11. Cheat sheet ★
+## 6. What this proves for the talk
 
-```text
-EXPRESS 5 ON CLOUDFLARE — this engagement only
+1. **Authn ≠ authz** — JWT thesis chain intact.  
+2. **Edge ≠ API security** — 1042 does not stop card dump or forge.  
+3. **Labels are honest** — body/stack are misconfig, not “Express defaults.”  
+4. **Elapsed 4.6s / 68 requests** — quoteable after the demo.  
+5. **Forgery last** — report climax matches the last LOOT on screen.
 
-NO LOGIN
-  missing headers              MEDIUM
-  1.5MB body accepted          HIGH
-  40 logins, no 429            HIGH
-  ../secrets → JWT secret      CRITICAL  ★
-  open redirect                HIGH
-  self-SSRF                    CF 1042 (platform)
-  stack traces                 MEDIUM
-  XSS probe                    CF 403 (platform)
-  slow handler ~3s             MEDIUM
-  GET /api/users dump          CRITICAL  ★
-  GET /api/users/1 IDOR        CRITICAL  ★
-  GET /api/debug/config        CRITICAL  ★
-  GET /api/search PII          HIGH
-  login error enumeration      MEDIUM
-  PUT /api/settings            HIGH
-
-ANY USER JWT
-  all orders (BOLA)            CRITICAL  ★
-  mass assign admin            CRITICAL  ★
-  write other user             CRITICAL  ★
-  GET /api/admin/stats         CRITICAL  ★
-
-LEAKED SECRET
-  forge admin JWT              CRITICAL  ★
-
-★ = show on projector if short on time
-Express 5 = current framework; JWT alone still fails closed-authz
-```
-
----
-
-*Educational VaultPay demo only. Express 5 target on Cloudflare Workers. Do not attack systems you do not own.*
+Local green contrast (not this URL): `npm run demo:hardened` → **0 critical**.

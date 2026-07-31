@@ -10,6 +10,8 @@ Same intentional **Express 5** VaultPay app on two free clouds:
 
 Full studies: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
 
+**Engagement (2026-07-31, current code):** CF **9** critical / **4.6s** · Vercel **10** critical / **10.0s** · both forged admin.
+
 ---
 
 ## One sentence
@@ -21,14 +23,14 @@ It does not authorize your REST API.**
 
 ## What the attack proved (this demo)
 
-### Cloudflare *did* interfere (this demo)
+### Cloudflare *did* interfere (this run)
 
 | Probe | What happened | Who blocked it? |
 | --- | --- | --- |
-| Noisy XSS payload in `/api/echo` | HTTP **403**, large WAF-style body | **Cloudflare** (platform) |
 | SSRF self-fetch via `/api/proxy` to same Worker | HTTP **404** + `error code: 1042` | **Cloudflare** (Worker fetch policy) |
 
-Those are **edge / runtime platform** behaviors — not Express 5 “becoming secure.”
+That is **edge / runtime platform** behavior — not Express 5 “becoming secure.”  
+External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
 
 ### Vercel *did little* for these probes (same app)
 
@@ -41,22 +43,27 @@ Those are **edge / runtime platform** behaviors — not Express 5 “becoming se
 
 ### Neither platform stopped (app still pwned)
 
-| Attack | Result | Needs login? |
-| --- | --- | --- |
-| `GET /api/users` full PII dump | **CRITICAL** — SSN, card, CVV | No |
-| Path traversal → JWT secret | **CRITICAL** | No |
-| `GET /api/debug/config` secret leak | **CRITICAL** | No |
-| IDOR `/api/users/:id` | **CRITICAL** | No |
-| 40× login flood, zero **429** | **HIGH** | No |
-| ~1.5 MiB body accepted (not 413) | **HIGH** | No |
-| Open redirect to evil host | **HIGH** | No |
-| BOLA: all customers’ orders | **CRITICAL** | Any user JWT |
-| Mass assignment → `role: admin` | **CRITICAL** | Any user JWT |
-| Admin stats dumps passwords | **CRITICAL** | Any user JWT |
-| Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) |
+| Attack | Result | Needs login? | kind |
+| --- | --- | --- | --- |
+| `GET /api/users` full PII dump | **CRITICAL** — SSN, card, CVV | No | junior-code |
+| Path traversal → JWT secret | **CRITICAL** | No | junior-code |
+| `GET /api/debug/config` secret leak | **CRITICAL** | No | junior-code |
+| IDOR `/api/users/:id` | **CRITICAL** | No | junior-code |
+| 40× login flood, zero **429** | **HIGH** | No | framework-gap |
+| ~1.5 MiB body accepted (not 413) | **HIGH** | No | **misconfig** (Express default 100kb) |
+| Open redirect to evil host | **HIGH** | No | junior-code |
+| Stack leak on `/api/boom` | **MEDIUM** | No | **misconfig** |
+| BOLA: all customers’ orders | **CRITICAL** | Any user JWT | junior-code |
+| Mass assignment → `role: admin` | **CRITICAL** | Any user JWT | junior-code |
+| Admin stats dumps passwords | **CRITICAL** | Any user JWT | junior-code |
+| Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) | junior-code |
 
-**Final score (this engagement):**  
-`API PWNED — 9 critical · 5 high · 4 medium · 68 requests`
+**Final score (this engagement):**
+
+| Cloud | Result |
+| --- | --- |
+| Cloudflare | `API PWNED — 9 critical · 68 requests · 4.6s` |
+| Vercel | `API PWNED — 10 critical · 67 requests · 10.0s` |
 
 ---
 
@@ -66,7 +73,6 @@ Those are **edge / runtime platform** behaviors — not Express 5 “becoming se
 
 - Free global host (`*.workers.dev`)
 - HTTPS at the edge
-- Some bot / WAF-style filtering (known XSS patterns, etc.)
 - Platform rules (e.g. Worker cannot freely self-fetch → **1042**)
 - DDoS absorption at CDN scale (not tested as full DDoS in this demo)
 
@@ -76,110 +82,29 @@ Those are **edge / runtime platform** behaviors — not Express 5 “becoming se
 - Authorization / ownership (BOLA)  
 - Field allowlists (mass assignment)  
 - App rate limits on login  
-- Safe defaults for body size, response headers, error redaction  
-- “Never return secrets in JSON”
-
-**Edge filter ≠ application security model.**
-
----
-
-## Layers (draw this mentally)
-
-```text
-  Internet
-      │
-      ▼
-┌─────────────────────────────┐
-│  Cloudflare edge            │  ← free: TLS, some WAF/bot noise
-│  (WAF 403, fetch 1042, …)   │     paid/config: custom WAF, rate limit, etc.
-└─────────────┬───────────────┘
-              │
-              ▼
-┌─────────────────────────────┐
-│  YOUR Express 5 app         │  ← JWT on a few routes ≠ done
-│  routes, authz, body, data  │     THIS is where VaultPay failed open
-└─────────────────────────────┘
-```
-
-Cloudflare can sit **in front**.  
-It does not rewrite your handlers to check `order.userId === req.user.sub`.
+- Safe app defaults for body size (this demo **raised** the limit on purpose)  
+- “Never return secrets in JSON”  
+- Role checks (`requireAuth` ≠ `requireRole`)
 
 ---
 
-## Free Workers vs “more Cloudflare”
+## Console legend (projector)
 
-| Capability | Free / bare Worker (this demo) | Extra products / config (not this demo) |
-| --- | --- | --- |
-| Host + HTTPS | Yes | Yes |
-| Some managed rules / bot noise | Often yes | Stronger with WAF / Bot Management |
-| Custom rate limit rules | Not automatic | Rate Limiting / WAF rules |
-| App authz / IDOR prevention | **No** | **Still no** — still your code (or API gateway policies you design) |
-| JWT secret not leaked | **No** | **Still your code** |
-
-Even a paid WAF cannot invent business rules you never wrote.
-
----
-
-## Comparison for the talk (3 columns)
-
-| Layer | Example control | Did it save VaultPay? |
-| --- | --- | --- |
-| **Cloudflare edge** | Block XSS string, block self-fetch | Partial — 2 probes only |
-| **Express 5** | Framework major upgrade | No — still no authz defaults |
-| **JWT** | Login returns a token | No — unauth routes + bad authz |
-| **App design** | Auth on every route, ownership, allowlists | **Would have** — missing here |
-| **Daloy-style defaults** | Body limit, rate limit, headers, safe redirect, SSRF guard | **Would have** blocked many *transport* holes |
-
----
-
-## Lines you can read aloud
-
-1. **“Cloudflare blocked the flashy XSS payload. It did not stop us from downloading every credit card without a password.”**
-
-2. **“Error 1042 is the platform refusing a Worker self-fetch. Our open-proxy route is still there; we already stole the JWT secret two other ways.”**
-
-3. **“Upgrading to Express 5 and deploying to Cloudflare is good ops. It is not a substitute for authorization.”**
-
-4. **“JWT proved someone could log in. It never decided who may read whose data.”**
-
----
-
-## What to do for real APIs (short checklist)
-
-1. **Default-deny** — every route authenticated unless explicitly public  
-2. **Authorize per resource** — ownership / roles (BOLA is the #1 API killer)  
-3. **Allowlist write fields** — never trust `req.body.role`  
-4. **Rate-limit login** — 429 under flood  
-5. **Hard body limits** — 413 before parse  
-6. **No debug/secret endpoints** in production  
-7. **Secure headers + prod error redaction**  
-8. **Edge WAF** as defense-in-depth — not the only control  
-9. Prefer frameworks with **secure defaults** so juniors don’t start from bare Express + JWT
-
----
-
-## Demo proof points (project these numbers)
-
-```text
-Target:     Express 5 on Cloudflare Workers
-Health:     "express": "5"
-Result:     API PWNED — 9 critical
-Stolen:     4 users (SSN/card/CVV), 5 orders, JWT secret
-Escalation: mass-assign admin + forged admin JWT
-CF blocked: XSS 403, SSRF self-fetch 1042
-CF missed:  almost everything that mattered
-```
-
----
-
-## Related docs in this repo
-
-| Doc | Use |
+| Tag | Meaning |
 | --- | --- |
-| [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | Full phase-by-phase of the live run |
-| [`HOW-TO-ATTACK.md`](HOW-TO-ATTACK.md) | How to reproduce |
-| [`README.md`](README.md) | Project overview + Daloy mapping |
+| `✗ APP HOLE` | Application / junior / misconfig finding |
+| `◇ PLATFORM` | Edge/runtime blocked the **probe** — app may still be open |
+| `(framework-gap)` | Express does not provide this control by default |
+| `(misconfig)` | Junior weakened a safer default (body, stack, …) |
+| `(junior-code)` | Vulnerable route logic you wrote |
 
 ---
 
-*Educational only. Attack only systems you own.*
+## Talk close (four lines)
+
+1. **Authn ≠ authz.**  
+2. **JWT is one control**, not a security model.  
+3. **Edge ≠ API authorization** — same code, two clouds, both pwned.  
+4. **Nothing is not a security model** — fix ownership in plain Express (`HARDENED=1` green run) or start from fail-closed defaults.
+
+Only attack systems you own. Tear down public demos when finished — [`TEARDOWN.md`](TEARDOWN.md).
