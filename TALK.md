@@ -22,7 +22,7 @@ Those three are **misconfig** in *this* demo (see [Honest labels](#honest-labels
 | Screen | What | File / command |
 | --- | --- | --- |
 | 1 | Frame + health | browser / `GET /api/health` |
-| 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL --drama` |
+| 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL` |
 | 3 | Edge vs app (short bullets, not a markdown table dump) | key lines from [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) |
 | 4 | Same code, two clouds | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) |
 | 5 | Close | 4 lines on slide or spoken |
@@ -97,11 +97,10 @@ Optional: show a login that returns a Bearer token — “Login works. Feels fin
 ## 0:45–3:30 — Attack
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 # if gated: add --gate=talk-day-secret
 ```
 
-`--drama` waits for **Enter** — you control the beat. Narrate only the scares:
 
 | When you see… | Say… |
 | --- | --- |
@@ -165,12 +164,16 @@ If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 ## 5:00–20:00 — Live attack (primary visual)
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset --gate=YOUR_TOKEN
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --projector --gate=YOUR_TOKEN
 ```
 
-**How to use Enter:** finish the sentence, then press Enter. If the room is reading, wait.
+Local run with the SSRF stand-in wired up automatically:
 
-**Climax order:** settings + raw TCP finish *before* BOLA/mass-assign/forged JWT so the last LOOT is the forged admin — not “Skipped raw TCP on HTTPS.”
+```powershell
+npm run demo:full     # boots API + internal service, then attacks
+```
+
+**Climax order:** settings, prototype pollution, and raw TCP finish *before* BOLA/mass-assign/forged JWT so the last LOOT is the forged admin — not “Skipped raw TCP on HTTPS.” Scroll or narrate over the continuous wire log.
 
 ### Phase narration map (OWASP API Top 10)
 
@@ -182,19 +185,39 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 | Path traversal → secret | API1 | “Junior file server. Not Express inventing VFS.” |
 | Open redirect | API8 | “`res.redirect(user input)`.” |
 | Open proxy / SSRF | API7 | “Junior `fetch(url)`. Edge may block self-fetch — still an open proxy.” |
+| **SSRF → internal service** | API7 | “Nobody told you your server can reach things you can’t.” |
+| **SSRF → redirect hop** | API7 | “This one *did* add an allowlist. It checked hop one. `fetch` follows 3xx.” |
 | Stack + HTML echo | API8 | “Stack = misconfig; XSS sink = junior code.” |
 | Slow handler | API4 | “No request timeout in the framework.” |
 | User dump / IDOR / debug | API1, API3, API8 | “JWT thesis — no password.” |
 | Account enum | API2 | “Different login errors.” |
+| Settings PUT | API3 | “Unauth state change.” |
+| **Prototype pollution** | API3 | “Empty body. The values came from `Object.prototype`.” |
 | BOLA orders | API1 | “Authn without authz.” |
 | Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
 | Admin stats | API5 | “requireAuth ≠ requireRole (BFLA).” |
+| **`alg:none` — rejected** | API2 | “You’re safe here. A library maintainer did that, not you.” |
 | Forged JWT | API2 | “Secret leak → identity forge.” |
-| Settings PUT | API3 | “Unauth state change.” |
 
 **Scoreboard tension:** call out critical count rising. Pause hard after first LOOT of cards and after forged admin.
 
-**Daloy / product:** **zero mentions** during this block. Console no longer pitches per phase.
+### The beats worth rehearsing
+
+**`alg:none`.** Let it go green. *“You did not configure that. jsonwebtoken v9 pins the algorithm allowlist for string secrets — a maintainer decided it for you. Every other thing on this screen, nobody decided for you.”*
+
+**The internal SSRF pivot — say the caveat, don’t let the console say it alone.**
+On a laptop the attacker and the API share a host, so the script honestly prints
+that the stand-in is reachable from here too. Get in front of it:
+
+> “On my laptop everything is one machine, so I can’t *simulate* a private
+> subnet. What I can show you is the mechanic: I pick the URL, the server
+> fetches it, and the server hands me the body. In production the thing on the
+> other end of that URL is your metadata service or your internal admin API —
+> one hop from the server, unroutable from my seat.”
+
+Then let the credentials land. Don’t apologise twice.
+
+**Daloy / product:** **zero mentions** during this block. Console does not pitch per phase.
 
 ---
 
@@ -238,7 +261,7 @@ This is the **original** material most “JWT isn’t enough” talks lack. Give
 ```powershell
 # Cloudflare study (already on screen or open ATTACK-RUN-CLOUDFLARE.md)
 # Vercel:
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --skip-flood
+node attack/attack.mjs https://vaultpay-api.vercel.app --skip-flood
 ```
 
 **Story structure (not a 17-row table on screen):**
@@ -292,7 +315,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 ## Hostile / 2-minute backup
 
 1. Health → express 5  
-2. `node attack/attack.mjs URL` **without** `--drama`  
+2. `node attack/attack.mjs URL --reset`
 3. Jump to LOOT users + JWT_SECRET + DEMO RESULT  
 4. One line: Cloudflare ≠ authz; JWT ≠ security model  
 
@@ -307,7 +330,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 | BOLA + forge chain | JWT myth dies on screen |
 | CF vs Vercel same app | Differentiator |
 | kind + OWASP tags | Authority with security-literate audience |
-| Enter-driven `--drama` | You talk; they read |
+| Continuous terminal run | Scoreboard builds without pauses |
 
 ## What not to claim
 

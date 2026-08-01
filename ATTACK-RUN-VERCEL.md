@@ -1,27 +1,28 @@
 # Attack run study — Vercel (Express 5)
 
 **Target:** `https://vaultpay-api.vercel.app`  
-**Stack:** **Express 5** + JWT (VaultPay, intentionally vulnerable)  
+**Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)  
 **Runtime:** `vercel-serverless` (from `/api/debug/config`)  
-**Health proof:** `GET /api/health` → `"express":"5"`  
-**Deploy:** local `vercel --prod --yes` from `server/` (2026-07-31, current tree)  
-**Attack:** 2026-07-31T20:07:56Z · flags `--reset --json`
+**Deployed:** 2026-08-01 — local `vercel --prod --yes`  
+**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
+**Reset proof:** `POST /api/demo/reset` → includes `prototypeKeysCleared`  
+**Attack:** 2026-08-01T10:09Z · `node attack/attack.mjs URL --reset --json`  
+(no `--internal`)
 
 ```powershell
-# Repo root
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler laptop only
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
 node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
 ```
 
-**Result:** `DEMO RESULT: API PWNED — 10 critical findings · 67 requests · 10.0s`  
-**By severity:** `CRITICAL: 10` · `HIGH: 6` · `MEDIUM: 4` · `INFO: 1` (21 findings)  
-**By kind:** `junior-code: 15` · `framework-gap: 4` · `misconfig: 2`  
+**Result:** `DEMO RESULT: API PWNED — 11 critical findings · 74 requests · 11.1s`  
+**By severity:** `CRITICAL: 11` · `HIGH: 8` · `MEDIUM: 4` · `INFO: 1` (**24** findings)  
+**By kind:** `junior-code: 17` · `framework-gap: 4` · `misconfig: 3`  
 **OWASP API:** API1, API2, API3, API4, API5, API7, API8  
-**Loot:** 4 users, 5 orders, JWT secret **YES**, privilege esc **YES**, forged admin **YES**  
-**Platform notes:** none (full open proxy self-fetch)
+**Loot:** 4 users · 5+ orders · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
+**Platform notes:** IMDS empty (expected off EC2)
 
-Raw console capture (local only, gitignored): `ATTACK-RUN-VERCEL-LATEST.log`  
-Cloudflare sister study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
+Raw log (local, gitignored): `ATTACK-RUN-VERCEL-LATEST.log`  
+Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
 
 ---
 
@@ -29,95 +30,89 @@ Cloudflare sister study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
 
 | Question | Answer |
 | --- | --- |
-| Is Vercel prod Express 5? | **Yes** — health `"express":"5"`, runtime `vercel-serverless` |
-| Private GitHub needed? | **No** — deploy was **local CLI → Vercel** |
-| Same app as Cloudflare? | **Yes** — same `server/app.js` source |
-| Why 10 critical vs CF’s 9? | **Self-SSRF open proxy** returns debug `jwtSecret` here (CF blocks self-fetch with 1042) |
-| Climax | Phase 15 forged admin JWT (settings/raw run earlier) |
+| Current code on Vercel? | **Yes** — reset cleanup field present; no hardened mode |
+| Unauth PII / secret / traversal? | **CRITICAL** |
+| Prototype pollution empty order? | **CRITICAL** — LOOT `ATTACKER PAYOUT LTD $31337` |
+| BOLA / mass-assign / BFLA / forge? | **CRITICAL** all landed |
+| `alg:none`? | **Rejected 401** — jsonwebtoken v9 pins HS256 for string secrets |
+| Self-SSRF open proxy? | **CRITICAL** (unlike CF 1042) |
+
+This is the **full chain** live cloud run for the current attack script.
 
 ---
 
-## 2. Phase order (same script as CF)
-
-| Phase | Title | Outcome on Vercel (this run) |
-| --- | --- | --- |
-| 01 | Demo reset | ok |
-| 02 | Recon | Health 200 |
-| 03 | Headers | HSTS **present** (edge); still missing CSP/XFO/nosniff; **x-powered-by: Express** |
-| 04 | Oversized body | **HIGH** misconfig — ~1.5 MiB accepted |
-| 05 | Login flood ×40 | **HIGH** — `{"401":40}`, 0×429, ~1075 ms |
-| 06 | Path traversal | **CRITICAL** |
-| 07 | Open redirect | **HIGH** |
-| 08 | Open proxy / SSRF | **CRITICAL** self-fetch of `/api/debug/config` + secret |
-| 09 | Stack + HTML echo | **MEDIUM** stack misconfig; **HIGH** mild HTML XSS sink |
-| 10 | Slow handler | **MEDIUM** ~3 s |
-| 11 | Unauth data theft | **CRITICAL** dump / IDOR / debug; **HIGH** search |
-| 12 | Account enumeration | **MEDIUM** |
-| 13 | Settings write | **HIGH** |
-| 14 | Raw TCP | Skipped (HTTPS) |
-| 15 | Authz + forge | **CRITICAL** ×5 — ends on forged admin |
-
----
-
-## 3. Finding inventory (this run)
-
-### CRITICAL (10)
+## 2. CRITICAL (11)
 
 | Finding | kind | OWASP |
 | --- | --- | --- |
 | Path traversal reads server secret files | junior-code | API1 |
-| **SSRF open proxy can reach internal URLs** | junior-code | API7 |
+| SSRF open proxy can reach internal URLs | junior-code | API7 |
 | Unauthenticated user dump | junior-code | API1 |
 | IDOR on `/api/users/:id` without auth | junior-code | API1 |
 | Debug endpoint leaks JWT signing secret | junior-code | API8 |
+| Prototype pollution via unauthenticated deep merge | junior-code | API3 |
 | BOLA on `/api/orders` | junior-code | API1 |
 | Mass assignment privilege escalation | junior-code | API3 |
 | Cross-user write without ownership check | junior-code | API1 |
 | Admin route checks login only, not role | junior-code | API5 |
 | Forged JWTs accepted (weak/leaked secret) | junior-code | API2 |
 
-### HIGH (6)
+---
 
-| Finding | kind | OWASP |
+## 3. HIGH (8) highlights
+
+| Finding | kind | Notes |
 | --- | --- | --- |
-| Demo misconfig: custom parser ~50mb | misconfig | API4 |
-| No rate limiting on authentication | framework-gap | API4 |
-| Open redirect | junior-code | API8 |
-| HTML echo XSS class | junior-code | API8 |
-| Unauthenticated PII search | junior-code | API3 |
-| Unauthenticated settings write | junior-code | API3 |
+| CORS misconfig allows any browser origin | misconfig | `ACA-Origin: *` |
+| Demo misconfig: custom ~50mb bodies | misconfig | not Express `json()` 100kb default |
+| No rate limiting on authentication | framework-gap | 40×401, zero 429 |
+| Open redirect | junior-code | |
+| Open proxy no egress allowlist (IMDS-class) | junior-code | 502 upstream; class still recorded |
+| HTML echo XSS class | junior-code | |
+| Unauthenticated PII search | junior-code | |
+| Unauthenticated settings write | junior-code | |
 
-### MEDIUM (4) + INFO (1)
-
-Same as CF: secure-headers gap, stack misconfig, request-timeout gap, login enumeration, x-powered-by.
+**MEDIUM:** secure-headers gap, stack leak misconfig, request-timeout gap, login enumeration  
+**INFO:** `X-Powered-By: Express`
 
 ---
 
-## 4. Vercel edge notes (this run)
+## 4. Edge / platform (this run)
 
-| Edge behavior | Result |
+| Probe | Vercel |
 | --- | --- |
-| HSTS | **Present:** `max-age=63072000; includeSubDomains; preload` — does not fix authz |
-| Self-SSRF via `/api/proxy` | **Allowed** — returns production debug JSON including `jwtSecret` |
-| Mild HTML `/api/echo` | **200** text/html reflection |
-| Login flood | No 429 from app or edge (40×401) |
+| HSTS | Often present on edge (header audit may still flag missing app CSP/XFO) |
+| Self-proxy → debug | **Works** → secret in body |
+| IMDS `169.254.169.254` | **502** · platform note + HIGH no allowlist |
+| Internal pivot (`--internal`) | Not used — laptop loopback not reachable from Vercel |
 
-LOOT excerpt from self-proxy:
+---
+
+## 5. Prototype pollution (headline)
 
 ```text
-{"env":"production","runtime":"vercel-serverless","jwtSecret":"supersecret123",...}
+✓ OK        Empty order body rejected (before pollution)
+·           PUT /api/settings with __proto__ → 200
+✗ APP HOLE  Empty JSON body created a transaction — values from the prototype
+ LOOT       forged-order  #6 ATTACKER PAYOUT LTD $31337
 ```
 
----
-
-## 5. Multi-instance note (unchanged)
-
-In-memory DB is per-isolate. Mass-assign uses **seed Alice** so it does not depend on `register` sticky sessions. `--reset` re-seeds when the isolate accepts it (this run: ok).
+Unlike Cloudflare Workers, pollution **does not** brick the Vercel instance for the rest of the run. Login and forge still complete. Use `--reset` between rehearsals so pollution does not stick in a warm isolate.
 
 ---
 
-## 6. Talk takeaway
+## 6. Compare to previous study (2026-07-31)
 
-Same Express 5 junior app as Cloudflare. Vercel adds HSTS and allows self-SSRF; Cloudflare blocks self-fetch and still loses to unauth PII and forged JWT. **Hosting platform ≠ API security.**
+| | Prior | This engagement (2026-08-01) |
+| --- | --- | --- |
+| Critical | 10 | **11** |
+| Findings | ~21 | **24** |
+| Requests / elapsed | 67 · ~10s | **74 · 11.1s** |
+| New vs prior | — | CORS, IMDS-class, **prototype pollution**, `alg:none` green check |
+| Forged admin | YES | **YES** |
 
-Elapsed quote: **10.0s · 67 requests · 10 critical**.
+---
+
+## 7. Talk takeaway
+
+Same incomplete Express + JWT app as Cloudflare. On Vercel you get the **full** story: unauth dump → pollution forged order → BOLA → mass-assign → forged admin. Cloudflare still proves unauth + secret leak + edge notes; use both for “platform ≠ authz,” prefer Vercel for the complete climax.

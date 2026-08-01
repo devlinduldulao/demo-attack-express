@@ -32,14 +32,14 @@ Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrati
 | Platform comparison CF vs Vercel | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) | Differentiator block |
 | Post-talk teardown / gate | [`TEARDOWN.md`](TEARDOWN.md) | **Do this** after the talk |
 
-**Live demos (Express 5, same app source, vulnerable mode):**
+**Live demos (Express 5, same app source, intentionally vulnerable):**
 
-| Platform | URL | Latest engagement (2026-07-31) | Study |
+| Platform | URL | Latest engagement (2026-08-01) | Study |
 | --- | --- | --- | --- |
-| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | **9** critical · 68 req · 4.6s | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
-| Vercel serverless | https://vaultpay-api.vercel.app | **10** critical · 67 req · 10.0s | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | **4** critical · 71 req · 4.5s* | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
+| Vercel serverless | https://vaultpay-api.vercel.app | **11** critical · 74 req · 11.1s | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
 
-Both deploys were **local CLI → cloud**. Comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
+Comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
 
 > **Educational only.** Only point the attack script at instances **you** deployed.
 > Public open-proxy / XSS sinks are abuse risk — gate or tear down ([`TEARDOWN.md`](TEARDOWN.md)).
@@ -102,6 +102,10 @@ appear on findings so the security-literate part of the room maps the chain.
 | 15 | Admin route without role check | Yes | **junior-code** + no authz primitive |
 | 16 | Forged JWT after secret leak | After leak | Weak secret + leak surface |
 | 17 | Unauth `PUT /api/settings` | No | **junior-code** |
+| 18 | SSRF → cloud-metadata URL (`169.254.169.254`) | No | **junior-code** — no egress policy |
+| 19 | SSRF → internal-only service (stand-in for IMDS) | No | **junior-code** |
+| 20 | SSRF → redirect hop bypasses a first-URL allowlist | No | **junior-code** — `redirect: "follow"`, no per-hop check |
+| — | `alg:none` unsigned JWT | — | **Rejected.** jsonwebtoken v9 pins HS256/384/512 for string secrets — the one save nobody in the app asked for. |
 
 **Honest gap for any framework:** ownership rules
 (`order.userId === req.user.sub`) are still **your** code. Defaults only close
@@ -117,12 +121,12 @@ They are a **30-second close**, not a running commentary during the attack.
 
 1. Open the live API: `GET /api/health` → `"express":"5"`.
 2. “Tutorial stack: Express 5 + JWT login. Deployed for public use.”
-3. Terminal (Enter between phases):
+3. Terminal (continuous — phases run straight through):
 
    ```bash
-   node attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev --drama
+   node attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev
    # if DEMO_GATE_TOKEN is set on the server:
-   node attack/attack.mjs https://… --drama --gate=talk-day-secret
+   node attack/attack.mjs https://… --gate=talk-day-secret
    ```
 
 4. Watch unauth probes first, then PII theft, then authz collapse and forged admin JWT.
@@ -143,7 +147,7 @@ npm run demo
 # Or two terminals
 cd server && npm start
 # other terminal, repo root:
-node attack/attack.mjs http://localhost:4000 --drama --reset --projector
+node attack/attack.mjs http://localhost:4000 --reset --projector
 ```
 
 | Email | Password | Role |
@@ -214,7 +218,10 @@ Optional: `JWT_SECRET`, `BODY_LIMIT=50mb`, `NODE_ENV=production`, `DEMO_GATE_TOK
   PLATFORM-COMPARISON.md          # CF vs Vercel — expand in long talks
   CLOUDFLARE-VS-APP-SECURITY.md
   TALK.md                         # 5 min + 30–45 min scripts
-  attack/attack.mjs
+  attack/attack.mjs               # black-box attacker (terminal only)
+  scripts/
+    demo.mjs                      # one command: API + internal service + attack
+    internal-service.mjs          # SSRF stand-in the API can reach, you can't
   server/
   tests/
   README.md
@@ -229,8 +236,8 @@ Vercel / Azure paths, Zscaler TLS notes, talk-day checklist.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ## Attack script console output
@@ -243,14 +250,12 @@ Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
   ✗ APP HOLE       Returned 4 full accounts without auth
    LOOT  #1 alice@example.com  ...
   [CRITICAL] [API1] (junior-code) Unauthenticated user dump
-  [Enter] continue…
 ```
 
 | Flag | Use |
 | --- | --- |
-| (default) | Phases, wire logs, LOOT, scoreboard |
+| (default) | Continuous phases, wire logs, LOOT, scoreboard |
 | `--verbose` | Response body previews |
-| `--drama` | **Wait for Enter** between phases (talk control) |
 | `--projector` | No dim text, less wire noise (big rooms) |
 | `--reset` | `POST /api/demo/reset` first (warm-isolate hygiene) |
 | `--gate=TOKEN` | Send `X-VaultPay-Demo` (or set `DEMO_GATE_TOKEN` env) |

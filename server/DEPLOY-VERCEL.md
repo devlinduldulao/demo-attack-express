@@ -68,12 +68,11 @@ From **repository root**:
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if needed
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+node attack/attack.mjs https://vaultpay-api.vercel.app
 # if DEMO_GATE_TOKEN is set on the project:
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --gate=YOUR_TOKEN
+node attack/attack.mjs https://vaultpay-api.vercel.app --gate=YOUR_TOKEN
 ```
 
-`--drama` waits for **Enter** between phases. Study: [`../ATTACK-RUN-VERCEL.md`](../ATTACK-RUN-VERCEL.md).
 After the talk: remove the project or leave the gate on — [`../TEARDOWN.md`](../TEARDOWN.md).
 
 ---

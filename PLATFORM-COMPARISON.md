@@ -8,40 +8,37 @@
 | **Vercel serverless** | `https://vaultpay-api.vercel.app` | `cd server && vercel --prod --yes` |
 | **Node long-running** | `http://localhost:4000` | `cd server && npm start` |
 
-GitHub private vs public **does not matter** for either cloud deploy in this repo: both were done **from the local machine** with the CLI.
-
-**Engagement date:** 2026-07-31 (post–finding-kinds / green-run codebase; vulnerable mode on both clouds).  
-**Attacker:** `attack/attack.mjs --reset --json` (current script: Enter-drama capable, kinds, OWASP, forgery last, elapsed time).
+**Engagement date:** 2026-08-01 (post–prototype-pollution + CORS/IMDS attacker; **no** HARDENED mode).  
+**Deploy Version (CF):** `fa70392f-4175-4922-a355-b4e3046bfc4d`  
+**Attacker:** `attack/attack.mjs --reset --json` (no `--internal`)
 
 ---
 
-## Attack outcomes (Express 5 only)
+## Attack outcomes (this engagement)
 
 | | Cloudflare | Vercel |
 | --- | --- | --- |
-| Study doc | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
-| Live result | API PWNED — **9** critical · **68** req · **4.6s** | API PWNED — **10** critical · **67** req · **10.0s** |
-| Findings total | 21 | 21 |
-| By kind | gap 4 · misconfig 2 · junior 15 | gap 4 · misconfig 2 · junior 15 |
+| Study | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+| Result | **4** critical · **71** req · **4.5s** | **11** critical · **74** req · **11.1s** |
+| Findings total | 18 | 24 |
+| By kind | gap 4 · misconfig 3 · junior 11 | gap 4 · misconfig 3 · junior 17 |
 | `"express":"5"` | Yes | Yes |
+| Reset `prototypeKeysCleared` | Yes | Yes |
 | Unauth PII / IDOR / debug secret | CRITICAL | CRITICAL |
-| Path traversal JWT secret | CRITICAL | CRITICAL |
-| BOLA / mass-assign / admin / forge | CRITICAL (climax last) | CRITICAL (climax last) |
-| Login flood no 429 | Yes (~404 ms batch) | Yes (~1075 ms batch) |
-| ~1.5 MiB body accepted | Yes (**misconfig**, not Express default) | Yes (**misconfig**) |
-| Open redirect | Yes | Yes |
-| SSRF → own `/api/debug/config` | **Blocked** CF `1042` → external proxy **HIGH** | **Works** (**CRITICAL**) |
-| Mild HTML XSS sink | Proven | Proven |
-| HSTS from edge | Missing in this CF run | **Present** (preload) |
-| Platform notes in attacker | Self-fetch 1042 | None (full open) |
-| Forged admin JWT | YES | YES |
+| Path traversal JWT file | CRITICAL | CRITICAL |
+| CORS `*` | HIGH misconfig | HIGH misconfig |
+| Self-SSRF → debug | **1042** platform → external HIGH | **CRITICAL** |
+| IMDS-class URL | 403 + HIGH no allowlist | 502 + HIGH no allowlist |
+| **Prototype pollution empty order** | **Fails / bricks isolate (1101)** until reset | **CRITICAL** LOOT forged order |
+| BOLA / mass-assign / BFLA / forge | **Skipped** (login dead after pollution) | **CRITICAL** all + forged admin **YES** |
+| `alg:none` | n/a (authz phase skipped) | Rejected 401 (library) |
 
 ---
 
 ## What this means for the talk
 
 ```text
-  Same junior Express 5 + JWT code
+  Same incomplete Express 5 + JWT code
            │
      ┌─────┴─────┐
      ▼           ▼
@@ -49,63 +46,27 @@ GitHub private vs public **does not matter** for either cloud deploy in this rep
  edge/WAF      edge/HSTS
      │           │
      ▼           ▼
-  Still pwned  Still pwned
-  (9 crit)     (10 crit)
+ Unauth pwn    Full chain pwn
+ + pollution   (pollution + forge)
+   bricks
+   isolate
 ```
 
-1. **Hosting platform ≠ application security.**  
-2. Cloudflare free defaults blocked **self-fetch** (1042). Open proxy still works for other URLs.  
-3. Vercel free defaults gave **HSTS** but allowed **SSRF self-fetch** of the debug secret.  
-4. Neither platform stopped **IDOR, secret leak, BOLA, mass-assign, or forged JWT**.  
-5. Finding **kinds** keep the room honest: body limit and stack leak are **misconfig**, not Express defaults.
-
-**Screen slide for edge nuance:** [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md)
-
----
-
-## Vercel edge in one breath
-
-| Helped | Did not help |
-| --- | --- |
-| HSTS header | Authz / ownership |
-| Free HTTPS + host | Rate limit on login |
-| | Body 413 on 1.5 MiB |
-| | Blocking open proxy |
-| | Stopping PII dump |
-
----
-
-## Cloudflare edge in one breath
-
-| Helped | Did not help |
-| --- | --- |
-| Self-fetch block (1042) | Authz / ownership |
-| Free HTTPS + host | Rate limit on login |
-| | Body 413 on 1.5 MiB |
-| | Stopping external open proxy |
-| | Stopping PII dump / forge |
+1. **Hosting ≠ API security** — both still dump PII and leak the JWT secret without a password.  
+2. **Vercel** is the better **live climax** (pollution LOOT + forged admin).  
+3. **Cloudflare** still valuable: edge 1042, IMDS refuse, and “pollution can take the Worker offline until reset.”  
+4. **Internal pivot / redirect hop** need `--internal=URL` against a **local** API (or any host that can reach your stand-in). Not these two public URLs.
 
 ---
 
 ## Deploy both (local CLI)
 
 ```powershell
-# Corporate TLS if needed
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-
 cd server
-npm install
-
-# Cloudflare
 npx wrangler deploy
-# → https://vaultpay-api.<you>.workers.dev
-
-# Vercel
 npx vercel --prod --yes
-# → https://vaultpay-api.vercel.app
 ```
-
-Then from **repo root**:
 
 ```powershell
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
@@ -114,10 +75,11 @@ node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
 
 ---
 
-## Diff that costs a critical
+## Diff that costs criticals
 
 | Probe | Cloudflare | Vercel |
 | --- | --- | --- |
-| `GET /api/proxy?url=<self>/api/debug/config` | 1042 / not secret | **200 + jwtSecret** → +1 CRITICAL |
+| Self open proxy | 1042 | **CRITICAL** secret |
+| Prototype pollution | **1101 brick** → skip forge | **CRITICAL** + rest of chain |
 
-Everything else in the JWT thesis chain is **the same pwn** on both.
+Everything else in the unauth JWT thesis is **the same class of incomplete setup** on both.

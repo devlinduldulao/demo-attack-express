@@ -111,12 +111,12 @@ unless the target has `DEMO_GATE_TOKEN` enabled.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 ```bash
 export NODE_TLS_REJECT_UNAUTHORIZED=0
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 **Clean network:** leave that variable **unset**.
@@ -136,7 +136,6 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | Flag | Meaning |
 | --- | --- |
 | (none) | Full run: wire logs on, flood on, slow probe on |
-| `--drama` | **Wait for Enter** between phases (talk control; non-TTY falls back to short sleep) |
 | `--projector` | No dim text; less wire noise (large rooms) |
 | `--reset` | `POST /api/demo/reset` before recon (warm isolate hygiene) |
 | `--gate=TOKEN` | Send `X-VaultPay-Demo` header (or set `DEMO_GATE_TOKEN` env) |
@@ -145,6 +144,20 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | `--json` | Print machine-readable findings after the report |
 | `--skip-flood` | Skip 40 parallel login burst |
 | `--skip-slow` | Skip `/api/slow?ms=3000` |
+| `--internal=URL` | Base URL of the SSRF stand-in internal service (or `INTERNAL_SERVICE_URL`). `npm run demo` sets this for you. |
+
+**Continuous terminal demo** (no pauses — phases run straight through):
+
+```powershell
+node attack/attack.mjs https://vaultpay-api.vercel.app --reset
+# shorter:
+node attack/attack.mjs https://vaultpay-api.vercel.app --reset --skip-flood
+# local one-shot:
+npm run demo
+```
+
+
+`--reset` (on by default in `npm run demo`) re-seeds DB and clears prototype pollution keys so a rehearsal does not spoil the next run.
 
 One-command local:
 
@@ -161,8 +174,8 @@ See [`TALK.md`](TALK.md) for how to narrate them.
 node attack/attack.mjs http://localhost:4000
 node attack/attack.mjs http://127.0.0.1:8787
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # only if TLS intercept
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --gate=talk-day-secret
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --gate=talk-day-secret
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 
@@ -170,7 +183,7 @@ Root helpers (if present):
 
 ```powershell
 npm run attack:local
-npm run attack -- https://vaultpay-api.devlinduldulao.workers.dev --drama
+npm run attack -- https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 ---
@@ -201,7 +214,7 @@ Invoke-RestMethod http://localhost:4000/api/health
 
 ```powershell
 # Repo root
-node attack/attack.mjs http://localhost:4000 --drama
+node attack/attack.mjs http://localhost:4000
 ```
 
 **Expect:** `DEMO RESULT: API PWNED` (~10 critical on localhost, including SSRF self-fetch).
@@ -227,7 +240,7 @@ npm run dev:cf
 
 ```powershell
 # Repo root
-node attack/attack.mjs http://127.0.0.1:8787 --drama
+node attack/attack.mjs http://127.0.0.1:8787
 ```
 
 No TLS bypass needed (HTTP).
@@ -269,14 +282,14 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 # ONLY if Node certificate errors (Zscaler / corporate MITM):
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 Soft run:
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --skip-flood
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood
 ```
 
 ### C5 — Cloudflare vs local Node
@@ -331,7 +344,7 @@ Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if needed
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+node attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ### D5 — What differs from Cloudflare
@@ -365,7 +378,7 @@ Deploy **`server/`** only.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if cert errors
-node attack/attack.mjs https://YOUR-APP.azurewebsites.net --drama
+node attack/attack.mjs https://YOUR-APP.azurewebsites.net
 ```
 
 ---
@@ -384,22 +397,30 @@ Used automatically by the attacker. Default JWT secret: `supersecret123`.
 
 ## 9. Phase order
 
+Numbers shift by one when `--reset` is on (it adds phase 01).
+
 | # | Phase | Needs login? |
 | --- | --- | --- |
-| 01 | Recon health + route map | No |
-| 02 | Missing security headers | No |
-| 03 | Oversized JSON body | No |
-| 04 | Login flood | No |
-| 05 | Path traversal → secrets | No |
-| 06 | Open redirect | No |
-| 07 | Open proxy / SSRF | No |
-| 08 | Stack leak + XSS echo | No |
-| 09 | Slow handler | No |
-| 10 | User dump / IDOR / debug / search | No |
-| 11 | Login error enumeration | No |
-| 12 | Login, BOLA, mass assign, admin, forge JWT | Yes (auto) |
-| 13 | Unauth settings write | No |
-| 14 | Raw TCP (HTTP only) | No |
+| 01 | Demo reset (only with `--reset`) | No |
+| 02 | Recon health + route map | No |
+| 03 | Missing security headers + `x-powered-by` | No |
+| 04 | CORS misconfig | No |
+| 05 | Oversized JSON body | No |
+| 06 | Login flood | No |
+| 07 | Path traversal → secrets | No |
+| 08 | Open redirect | No |
+| 09 | Open proxy / SSRF — self, external, IMDS, **internal pivot**, **redirect hop** | No |
+| 10 | Stack leak + XSS echo | No |
+| 11 | Slow handler | No |
+| 12 | User dump / IDOR / debug / search | No |
+| 13 | Login error enumeration | No |
+| 14 | Unauth settings write | No |
+| 15 | **Prototype pollution → forged transaction** | Yes (auto, for the proof) |
+| 16 | Raw TCP (HTTP only) | No |
+| 17 | Login, BOLA, mass assign, admin, `alg:none`, forge JWT | Yes (auto) |
+
+The SSRF internal-pivot and redirect-hop probes only run when `--internal=URL`
+is set (automatic under `npm run demo`).
 
 ---
 
@@ -421,8 +442,8 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
 
 # 3) Attack both (optional: one is enough on stage)
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node attack/attack.mjs https://vaultpay-api.vercel.app
 
 # 4) Show PLATFORM-COMPARISON.md or CLOUDFLARE-VS-APP-SECURITY.md
 # 5) End on: DEMO RESULT: API PWNED
@@ -464,8 +485,8 @@ npm start
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ### Clear TLS bypass after the talk

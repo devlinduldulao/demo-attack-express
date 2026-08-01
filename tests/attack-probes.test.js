@@ -44,15 +44,21 @@ after(async () => {
 
 beforeEach(() => db.reset());
 
+/**
+ * @param {string} method
+ * @param {string} path
+ * @param {{ body?: unknown, headers?: Record<string,string> }} [opts]
+ */
 async function http(method, path, opts = {}) {
+  const payload = opts.body ? JSON.stringify(opts.body) : undefined;
   const res = await fetch(`${base}${path}`, {
     method,
     headers: {
       Accept: "application/json, text/plain, */*",
-      ...(opts.body ? { "Content-Type": "application/json" } : {}),
+      ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(opts.headers || {}),
     },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    body: payload,
     redirect: "manual",
   });
   const text = await res.text();
@@ -196,5 +202,18 @@ describe("attack probes — authenticated abuse chain", () => {
     });
     assert.equal(me.status, 200);
     assert.equal(me.json.user.role, "admin");
+  });
+
+  it("rejects alg:none (jsonwebtoken v9 pins HS* for string secrets)", async () => {
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const unsigned = `${b64({ alg: "none", typ: "JWT" })}.${b64({
+      sub: 3,
+      email: "admin@vaultpay.demo",
+      role: "admin",
+    })}.`;
+    const me = await http("GET", "/api/me", {
+      headers: { Authorization: `Bearer ${unsigned}` },
+    });
+    assert.equal(me.status, 401);
   });
 });
