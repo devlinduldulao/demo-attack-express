@@ -62,7 +62,7 @@ From the [official guide](https://expressjs.com/en/guide/migrating-5/) and [rele
 1. Express 5 works on Workers
 2. The oversized-body attack still demos
 
-**Talk honesty:** Express 5 `express.json()` defaults to **100 kb** and returns **413**. The 1.5 MiB acceptance on screen is a **junior misconfig** (we replaced the safer default), **not** an Express default. The attack script labels it `misconfig` / API4. Same for production stack leaks (custom error handler vs `finalhandler` redaction) and CORS `*` (added `cors` package — bare Express has no CORS).
+**Talk honesty:** Express 5 `express.json()` defaults to **100 kb** and returns **413**. The 1.5 MiB acceptance on screen is a **demo misconfig** (we replaced the safer default), **not** an Express default. The attack script labels it `misconfig` / API4. Same for production stack leaks (custom error handler vs `finalhandler` redaction) and CORS `*` (added `cors` package — bare Express has no CORS).
 
 Real Express **gaps** that remain fair to claim: no secure headers, `x-powered-by` ON, no rate limit, no request timeout, no authz primitive, no response schema.
 

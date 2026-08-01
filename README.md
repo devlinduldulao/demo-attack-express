@@ -10,7 +10,7 @@ API** plus a black-box **attack script** that hits the API URL directly.
 > and nothing is not a security model.
 
 Express’s defaults are fine **where they exist**. The problem is **how few of
-them exist** — and juniors still write path traversal, open proxies, and
+them exist** — and real apps still ship path traversal, open proxies, and
 `requireAuth` without role checks. This repo labels findings honestly so a
 skeptic in row 3 cannot sink the talk.
 
@@ -71,8 +71,8 @@ Every recorded finding carries a `kind`:
 | kind | Meaning |
 | --- | --- |
 | `framework-gap` | Express does not provide this control by default |
-| `misconfig` | Junior weakened / replaced a safer Express default |
-| `junior-code` | Intentionally vulnerable app code (not a framework default) |
+| `misconfig` | Demo weakened / replaced a safer Express default |
+| `app-code` | Vulnerable route / app logic (not a framework default) |
 
 OWASP API Top 10 tags (`API1` BOLA, `API2` broken auth, `API3` BOPLA, `API4`
 unrestricted resource, `API5` BFLA, `API7` SSRF, `API8` misconfig/security)
@@ -88,21 +88,21 @@ appear on findings so the security-literate part of the room maps the chain.
 | 2 | CORS `origin: "*"` | No | **misconfig** (bare Express has no CORS) |
 | 3 | ~1.5 MiB JSON accepted | No | **misconfig** (custom 50 mb parser; Express default 100 kb) |
 | 4 | 40× parallel login → zero `429` | No | **framework-gap** |
-| 5 | Path traversal `/api/files?name=../secrets/…` | No | **junior-code** |
-| 6 | Open redirect `/api/go?url=` | No | **junior-code** |
-| 7 | Open proxy `/api/proxy?url=` (self / external) | No | **junior-code** (no SSRF primitive in Express) |
-| 8 | SSRF-class URL `169.254.169.254` (no egress policy) | No | **junior-code** — often empty on CF/Vercel (`◇ PLATFORM`) |
-| 9 | Stack leak + HTML echo | No | **misconfig** + **junior-code** |
+| 5 | Path traversal `/api/files?name=../secrets/…` | No | **app-code** |
+| 6 | Open redirect `/api/go?url=` | No | **app-code** |
+| 7 | Open proxy `/api/proxy?url=` (self / external) | No | **app-code** (no SSRF primitive in Express) |
+| 8 | SSRF-class URL `169.254.169.254` (no egress policy) | No | **app-code** — often empty on CF/Vercel (`◇ PLATFORM`) |
+| 9 | Stack leak + HTML echo | No | **misconfig** + **app-code** |
 | 10 | Slow handler holds socket | No | **framework-gap** |
-| 11 | `GET /api/users` full PII dump | No | **junior-code** / missing authz |
-| 12 | IDOR `/api/users/:id` | No | **junior-code** |
-| 13 | Debug config leaks JWT secret | No | **junior-code** |
-| 14 | Account enumeration via login errors | No | **junior-code** |
-| 15 | Unauth `PUT /api/settings` | No | **junior-code** |
-| 16 | BOLA on `/api/orders` | Yes (any user) | **junior-code** — authn ≠ authz |
-| 17 | Mass assignment `role: "admin"` | Yes | **junior-code** |
-| 18 | Cross-user write | Yes | **junior-code** |
-| 19 | Admin route without role check | Yes | **junior-code** + no authz primitive |
+| 11 | `GET /api/users` full PII dump | No | **app-code** / missing authz |
+| 12 | IDOR `/api/users/:id` | No | **app-code** |
+| 13 | Debug config leaks JWT secret | No | **app-code** |
+| 14 | Account enumeration via login errors | No | **app-code** |
+| 15 | Unauth `PUT /api/settings` | No | **app-code** |
+| 16 | BOLA on `/api/orders` | Yes (any user) | **app-code** — authn ≠ authz |
+| 17 | Mass assignment `role: "admin"` | Yes | **app-code** |
+| 18 | Cross-user write | Yes | **app-code** |
+| 19 | Admin route without role check | Yes | **app-code** + no authz primitive |
 | 20 | Forged JWT after secret leak | After leak | Weak secret + leak surface |
 | — | `alg:none` unsigned JWT | — | **Rejected.** jsonwebtoken v9 pins HS256/384/512 for string secrets |
 | * | SSRF internal pivot + redirect hop | No | **Local only** — `npm run demo` / `--internal=URL` (not on public CF/Vercel) |
@@ -112,8 +112,20 @@ appear on findings so the security-literate part of the room maps the chain.
 transport and foot-gun classes.
 
 Optional after-talk note: secure-by-default frameworks (e.g. body limits, rate
-limits, headers, schemas, fail-closed auth hooks) shrink the junior blast radius.
+limits, headers, schemas, fail-closed auth hooks) shrink the app-code blast radius.
 They are a **30-second close**, not a running commentary during the attack.
+
+### Terms you’ll see on screen
+
+| Term | Meaning |
+| --- | --- |
+| **IDOR** | *Insecure Direct Object Reference* — client picks an object id (`/api/users/2`) and the server returns it without checking ownership. |
+| **BOLA** | *Broken Object Level Authorization* (OWASP API1) — same idea for APIs: authn OK, object-level authz missing (e.g. Alice’s JWT lists everyone’s orders). |
+| **BFLA** | *Broken Function Level Authorization* (API5) — role/function checks missing (any user hits admin routes). |
+| **Mass assignment** | Client writes privileged fields (`role: "admin"`) and the app saves them (API3). |
+| `app-code` | Hole is in **your route logic**, not Express defaults. |
+| `misconfig` | Demo weakened a safer Express default (body size, stack, CORS). |
+| `framework-gap` | Express does not ship this control (rate limit, secure headers, …). |
 
 ---
 
@@ -236,7 +248,7 @@ Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
   ← RECV  #12  200  18ms
   ✗ APP HOLE       Returned 4 full accounts without auth
    LOOT  #1 alice@example.com  ...
-  [CRITICAL] [API1] (junior-code) Unauthenticated user dump
+  [CRITICAL] [API1] (app-code) Unauthenticated user dump
 ```
 
 | Flag | Use |

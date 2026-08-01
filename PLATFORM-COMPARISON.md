@@ -21,7 +21,7 @@
 | Study | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
 | Result | **9** critical · **71** req · **4.3s** | **10** critical · **70** req · **10.1s** |
 | Findings total | 23 | 23 |
-| By kind | gap 4 · misconfig 3 · junior 16 | gap 4 · misconfig 3 · junior 16 |
+| By kind | gap 4 · misconfig 3 · app-code 16 | gap 4 · misconfig 3 · app-code 16 |
 | `"express":"5"` | Yes | Yes |
 | Unauth PII / IDOR / debug secret | CRITICAL | CRITICAL |
 | Path traversal JWT file | CRITICAL | CRITICAL |

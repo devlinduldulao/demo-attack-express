@@ -17,7 +17,7 @@ node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 
 **Result:** `DEMO RESULT: API PWNED — 10 critical findings · 70 requests · 10.1s`  
 **By severity:** `CRITICAL: 10` · `HIGH: 8` · `MEDIUM: 4` · `INFO: 1` (**23** findings)  
-**By kind:** `junior-code: 16` · `framework-gap: 4` · `misconfig: 3`  
+**By kind:** `app-code: 16` · `framework-gap: 4` · `misconfig: 3`  
 **OWASP API:** API1, API2, API3, API4, API5, API7, API8  
 **Loot:** 4 users · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
 **`alg:none`:** rejected (401) — jsonwebtoken v9 pins HS256 for string secrets  
@@ -46,16 +46,16 @@ This is the **full chain** on a public free-tier host.
 
 | Finding | kind | OWASP |
 | --- | --- | --- |
-| Path traversal reads server secret files | junior-code | API1 |
-| SSRF open proxy can reach internal URLs | junior-code | API7 |
-| Unauthenticated user dump | junior-code | API1 |
-| IDOR on `/api/users/:id` without auth | junior-code | API1 |
-| Debug endpoint leaks JWT signing secret | junior-code | API8 |
-| BOLA on `/api/orders` | junior-code | API1 |
-| Mass assignment privilege escalation | junior-code | API3 |
-| Cross-user write without ownership check | junior-code | API1 |
-| Admin route checks login only, not role | junior-code | API5 |
-| Forged JWTs accepted (weak/leaked secret) | junior-code | API2 |
+| Path traversal reads server secret files | app-code | API1 |
+| SSRF open proxy can reach internal URLs | app-code | API7 |
+| Unauthenticated user dump | app-code | API1 |
+| IDOR on `/api/users/:id` without auth | app-code | API1 |
+| Debug endpoint leaks JWT signing secret | app-code | API8 |
+| BOLA on `/api/orders` | app-code | API1 |
+| Mass assignment privilege escalation | app-code | API3 |
+| Cross-user write without ownership check | app-code | API1 |
+| Admin route checks login only, not role | app-code | API5 |
+| Forged JWTs accepted (weak/leaked secret) | app-code | API2 |
 
 (+1 critical vs CF is **self-SSRF returning the debug secret**.)
 
@@ -68,11 +68,11 @@ This is the **full chain** on a public free-tier host.
 | CORS misconfig allows any browser origin | misconfig |
 | Demo misconfig: custom ~50mb bodies | misconfig |
 | No rate limiting on authentication | framework-gap |
-| Open redirect | junior-code |
-| Open proxy no egress allowlist (IMDS-class) | junior-code |
-| HTML echo XSS class | junior-code |
-| Unauthenticated PII search | junior-code |
-| Unauthenticated settings write | junior-code |
+| Open redirect | app-code |
+| Open proxy no egress allowlist (IMDS-class) | app-code |
+| HTML echo XSS class | app-code |
+| Unauthenticated PII search | app-code |
+| Unauthenticated settings write | app-code |
 
 **MEDIUM / INFO:** same family as CF (headers, stack misconfig, timeout, enum, x-powered-by).
 

@@ -160,7 +160,7 @@ npm run demo
 
 `--reset` re-seeds the in-memory DB so a warm isolate does not keep “Hijacked Bob” from a prior run.
 
-Findings are tagged `framework-gap` | `misconfig` | `junior-code` plus OWASP API ids.
+Findings are tagged `framework-gap` | `misconfig` | `app-code` plus OWASP API ids.
 See [`TALK.md`](TALK.md) for how to narrate them.
 
 **Examples** (from repo root):

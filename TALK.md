@@ -38,9 +38,19 @@ On-screen findings are tagged:
 | kind | Meaning | Audience line |
 | --- | --- | --- |
 | `framework-gap` | Express does not provide this control | “Nothing in the box” |
-| `misconfig` | Junior replaced a *safer* Express default | “We weakened what Express already gave” |
-| `junior-code` | App code you wrote wrong | “Tutorial shipped this” |
+| `misconfig` | Demo replaced a *safer* Express default | “We weakened what Express already gave” |
+| `app-code` | Vulnerable route / app logic you wrote | “Tutorial shipped this” |
 | `◇ PLATFORM` | Edge/runtime blocked the probe | “CDN ≠ authz” |
+
+### IDOR vs BOLA (say this once if someone freezes)
+
+| Term | Plain English | This demo |
+| --- | --- | --- |
+| **IDOR** | “I change the id in the URL and get someone else’s record.” | `GET /api/users/2` with no (or wrong) token |
+| **BOLA** | OWASP API1 name for the same class — object-level authz missing | Alice’s JWT → `GET /api/orders` returns **all** customers’ orders |
+| **BFLA** | Function/role-level authz missing | Any JWT hits admin stats |
+
+**One line for the room:** *Login proves who you are. IDOR/BOLA is failing what you’re allowed to touch.*
 
 Three findings that used to overstate Express defaults (fixed in the script):
 
@@ -90,7 +100,7 @@ After the talk: **[TEARDOWN.md](TEARDOWN.md)** — delete projects or leave the 
 
 **Say:**
 
-> “Junior tutorial: Express 5, JWT login, free Cloudflare. They think modern stack + JWT + CDN = done.”
+> “Tutorial stack: Express 5, JWT login, free Cloudflare. They think modern stack + JWT + CDN = done.”
 
 Optional: show a login that returns a Bearer token — “Login works. Feels finished.”
 
@@ -286,7 +296,7 @@ Point people at [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) and the two A
 
 1. **Authn ≠ authz.** A valid JWT is not an access-control policy.  
 2. **JWT is one control.** Secret leak + HS256 = forged identity.  
-3. **Nothing is not a security model.** Frameworks that ship almost no defaults leave juniors shipping open APIs.  
+3. **Nothing is not a security model.** Frameworks that ship almost no defaults leave teams shipping open APIs.  
 4. **Edge ≠ API security.** Same code, two clouds, both pwned where it counts.
 
 **Last 30 seconds only (optional product / framework note):**
@@ -305,7 +315,8 @@ Do **not** open a 17-row feature matrix. Link README later.
 
 | Question | Answer |
 | --- | --- |
-| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `junior-code`. JWT/BOLA/BFLA chain is the thesis. |
+| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `app-code`. JWT/BOLA/BFLA chain is the thesis. |
+| “What is BOLA / IDOR?” | Same class: object id trusted without ownership. IDOR = classic name; BOLA = OWASP API1. Alice’s JWT reading Bob’s orders. |
 | “Express 5 fixed security?” | No — v5 is API cleanup, not a security model. |
 | “Would helmet / rate-limit fix it?” | Partly transport; not BOLA/ownership. |
 | “Cloudflare failed?” | No — edge did its job on two probes; app authz still missing. |

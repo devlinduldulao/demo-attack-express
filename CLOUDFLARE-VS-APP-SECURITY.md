@@ -30,7 +30,7 @@ It does not authorize your REST API.**
 | SSRF self-fetch via `/api/proxy` to same Worker | HTTP **404** + `error code: 1042` | **Cloudflare** (Worker fetch policy) |
 
 That is **edge / runtime platform** behavior — not Express 5 “becoming secure.”  
-External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
+External open proxy (`example.com`) still succeeded → **HIGH** app-code.
 
 ### Vercel *did little* for these probes (same app)
 
@@ -45,18 +45,18 @@ External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
 
 | Attack | Result | Needs login? | kind |
 | --- | --- | --- | --- |
-| `GET /api/users` full PII dump | **CRITICAL** — SSN, card, CVV | No | junior-code |
-| Path traversal → JWT secret | **CRITICAL** | No | junior-code |
-| `GET /api/debug/config` secret leak | **CRITICAL** | No | junior-code |
-| IDOR `/api/users/:id` | **CRITICAL** | No | junior-code |
+| `GET /api/users` full PII dump | **CRITICAL** — SSN, card, CVV | No | app-code |
+| Path traversal → JWT secret | **CRITICAL** | No | app-code |
+| `GET /api/debug/config` secret leak | **CRITICAL** | No | app-code |
+| IDOR `/api/users/:id` | **CRITICAL** | No | app-code |
 | 40× login flood, zero **429** | **HIGH** | No | framework-gap |
 | ~1.5 MiB body accepted (not 413) | **HIGH** | No | **misconfig** (Express default 100kb) |
-| Open redirect to evil host | **HIGH** | No | junior-code |
+| Open redirect to evil host | **HIGH** | No | app-code |
 | Stack leak on `/api/boom` | **MEDIUM** | No | **misconfig** |
-| BOLA: all customers’ orders | **CRITICAL** | Any user JWT | junior-code |
-| Mass assignment → `role: admin` | **CRITICAL** | Any user JWT | junior-code |
-| Admin stats dumps passwords | **CRITICAL** | Any user JWT | junior-code |
-| Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) | junior-code |
+| BOLA: all customers’ orders | **CRITICAL** | Any user JWT | app-code |
+| Mass assignment → `role: admin` | **CRITICAL** | Any user JWT | app-code |
+| Admin stats dumps passwords | **CRITICAL** | Any user JWT | app-code |
+| Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) | app-code |
 
 **Final score (this engagement):**
 
@@ -92,11 +92,11 @@ External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
 
 | Tag | Meaning |
 | --- | --- |
-| `✗ APP HOLE` | Application / junior / misconfig finding |
+| `✗ APP HOLE` | Application / app-code / misconfig finding |
 | `◇ PLATFORM` | Edge/runtime blocked the **probe** — app may still be open |
 | `(framework-gap)` | Express does not provide this control by default |
 | `(misconfig)` | Junior weakened a safer default (body, stack, …) |
-| `(junior-code)` | Vulnerable route logic you wrote |
+| `(app-code)` | Vulnerable route / app logic you wrote (not Express default) |
 
 ---
 

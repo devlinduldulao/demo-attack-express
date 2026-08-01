@@ -161,7 +161,7 @@ ${c.red}${c.bold}╔════════════════════
     );
   }
   console.log(
-    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  kind: framework-gap | misconfig | junior-code${c.reset}\n`
+    `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  kind: framework-gap | misconfig | app-code${c.reset}\n`
   );
 }
 
@@ -446,12 +446,12 @@ const stolen = {
  * @param {string} severity
  * @param {string} title
  * @param {string} [detail]
- * @param {{ kind?: "framework-gap"|"misconfig"|"junior-code"|"platform", owasp?: string, source?: string }} [meta]
+ * @param {{ kind?: "framework-gap"|"misconfig"|"app-code"|"platform", owasp?: string, source?: string }} [meta]
  *
  * kind:
  *   framework-gap — Express does not provide this control by default
- *   misconfig     — junior deliberately weakened / replaced a safer default
- *   junior-code   — intentionally vulnerable app code (not a framework default)
+ *   misconfig     — demo deliberately weakened / replaced a safer default
+ *   app-code      — vulnerable route / app logic (not a framework default)
  *   platform      — edge/runtime behavior
  */
 function record(severity, title, detail, meta = {}) {
@@ -459,7 +459,7 @@ function record(severity, title, detail, meta = {}) {
     severity,
     title,
     detail,
-    kind: meta.kind || "junior-code",
+    kind: meta.kind || "app-code",
     owasp: meta.owasp || null,
     source: meta.source || "app",
   };
@@ -695,7 +695,7 @@ async function phaseNoRateLimitFlood() {
 
 async function phasePathTraversal() {
   step("Path traversal on /api/files (no login)");
-  intent("Junior-coded file endpoint joins user input with no jail — not an Express default.");
+  intent("App file endpoint joins user input with no jail — not an Express default.");
   narrate("First, read the intended public file…");
   const legit = await http("GET", "/api/files?name=welcome.txt", { label: "legit-file" });
   if (legit.status === 200 && /Welcome to VaultPay/i.test(legit.text)) {
@@ -734,7 +734,7 @@ async function phasePathTraversal() {
       "CRITICAL",
       "Path traversal reads server secret files",
       "Junior vfs/join with no containment — Express did not invent this endpoint",
-      { kind: "junior-code", owasp: "API1" }
+      { kind: "app-code", owasp: "API1" }
     );
   } else {
     ok("Path traversal did not yield secrets (unexpected for this demo)");
@@ -756,8 +756,8 @@ async function phaseOpenRedirect() {
     record(
       "HIGH",
       "Open redirect",
-      "Any absolute URL accepted — junior code; res.redirect(url) does not validate destinations (Express security guide: prevent open redirects)",
-      { kind: "junior-code", owasp: "API8" }
+      "Any absolute URL accepted — app-code; res.redirect(url) does not validate destinations (Express security guide: prevent open redirects)",
+      { kind: "app-code", owasp: "API8" }
     );
   } else {
     ok(`Redirect not open (status ${res.status}, location=${loc || "none"})`);
@@ -792,7 +792,7 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
       "HIGH",
       "Open proxy accepted cloud-metadata URL (egress unrestricted)",
       "App attempted server-side fetch of 169.254.169.254 via /api/proxy. No link-local/private allowlist. Transport failed off-box — class still applies on EC2/IMDSv1.",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
     notePlatform(
       "Cloud-metadata probe did not return IMDS data (expected off EC2)",
@@ -822,7 +822,7 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
       "CRITICAL",
       "SSRF open proxy can reach cloud instance metadata",
       "Server fetched 169.254.169.254 (IMDS). On EC2/IMDSv1 this class yields instance role credentials. No egress allowlist on /api/proxy.",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
     return;
   }
@@ -834,7 +834,7 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
       "HIGH",
       "Open proxy accepted cloud-metadata URL (egress unrestricted)",
       "GET /api/proxy?url=http://169.254.169.254/... was allowed through the app. Response may not be real IMDS on serverless — the bug is unrestricted server-side fetch.",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
     return;
   }
@@ -847,7 +847,7 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
     "HIGH",
     "Open proxy has no egress allowlist (metadata-class URL not blocked at app)",
     "Requested classic AWS IMDS URL via /api/proxy. App did not refuse link-local/private ranges; runtime/upstream failed or has no IMDS. On a misconfigured VM the same hole reaches 169.254.169.254.",
-    { kind: "junior-code", owasp: "API7" }
+    { kind: "app-code", owasp: "API7" }
   );
   notePlatform(
     "Cloud-metadata probe did not return IMDS data (expected off EC2)",
@@ -914,7 +914,7 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
       "CRITICAL",
       "SSRF pivot to internal-only service",
       "Server-side fetch has no egress policy: it reaches a service the client cannot, and returns the body verbatim (stand-in for cloud IMDS)",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
   } else {
     info(`Internal pivot → ${pivot.status} ${body.slice(0, 80)}`);
@@ -934,7 +934,7 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
       "HIGH",
       "SSRF redirect-hop bypass (redirect: follow, no per-hop revalidation)",
       "Checking only the URL the user supplied is not enough — fetch follows 3xx and the final hop is never revalidated",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
   } else {
     info(`Redirect-hop probe → ${hop.status}`);
@@ -969,12 +969,12 @@ async function phaseSsrfProxy() {
       "CRITICAL",
       "SSRF open proxy can reach internal URLs",
       "fetch(user URL) with no allowlist — Express has no built-in SSRF guard",
-      { kind: "junior-code", owasp: "API7" }
+      { kind: "app-code", owasp: "API7" }
     );
   } else if (res.status === 200) {
     bad(`Open proxy returned 200 for self-URL (body may vary)`);
     record("HIGH", "Open proxy endpoint exists", res.text.slice(0, 120), {
-      kind: "junior-code",
+      kind: "app-code",
       owasp: "API7",
     });
   } else if (res.status === 404 && /error code:\s*1042/i.test(res.text || "")) {
@@ -995,7 +995,7 @@ async function phaseSsrfProxy() {
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
         "Self-target blocked by CF 1042; external target succeeded — open proxy, not a framework feature",
-        { kind: "junior-code", owasp: "API7" }
+        { kind: "app-code", owasp: "API7" }
       );
     } else {
       info(`External proxy probe → ${ext.status} (self still CF-blocked)`);
@@ -1017,7 +1017,7 @@ async function phaseSsrfProxy() {
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
         "App /api/proxy with no allowlist",
-        { kind: "junior-code", owasp: "API7" }
+        { kind: "app-code", owasp: "API7" }
       );
     } else if (ext.status === 404) {
       proxyAlive = false;
@@ -1034,7 +1034,7 @@ async function phaseSsrfProxy() {
 async function phaseStackAndEcho() {
   step("Error stack leak + reflected XSS sink (no login)");
   intent(
-    "Stack leak: junior custom handler — Express default error path uses finalhandler, which omits err.stack when NODE_ENV=production. XSS: junior HTML echo."
+    "Stack leak: custom error handler — Express default error path uses finalhandler, which omits err.stack when NODE_ENV=production. XSS: app HTML echo."
   );
   narrate("Triggering an intentional server error…");
   const boom = await http("GET", "/api/boom", { label: "stack-leak" });
@@ -1062,13 +1062,13 @@ async function phaseStackAndEcho() {
     mildRes.text.includes(mild) &&
     /text\/html/i.test(mildRes.headers["content-type"] || "")
   ) {
-    bad("User input reflected as text/html without encoding (junior XSS sink)");
+    bad("User input reflected as text/html without encoding (app XSS sink)");
     loot("reflected", mild);
     record(
       "HIGH",
       "Junior code: reflected HTML echo sink (XSS class)",
       "Not a framework default — developer built text/html echo of query params",
-      { kind: "junior-code", owasp: "API8" }
+      { kind: "app-code", owasp: "API8" }
     );
   } else {
     const xss = `<img src=x onerror=alert(1)>`;
@@ -1087,12 +1087,12 @@ async function phaseStackAndEcho() {
         "HIGH",
         "Junior code: reflected XSS via HTML echo endpoint",
         "Developer built this sink — Express does not echo HTML by default",
-        { kind: "junior-code", owasp: "API8" }
+        { kind: "app-code", owasp: "API8" }
       );
     } else if (echo.status === 403 || mildRes.status === 403) {
       notePlatform(
         "Edge WAF returned 403 on XSS/HTML probe — not Express output encoding",
-        "Edge may block attack-shaped queries. App still has junior /api/echo sink if WAF misses."
+        "Edge may block attack-shaped queries. App still has /api/echo sink if WAF misses."
       );
     } else {
       ok(`HTML echo probes did not prove reflection (mild=${mildRes.status} noisy=${echo.status})`);
@@ -1147,8 +1147,8 @@ async function phaseUnauthDataTheft() {
     record(
       "CRITICAL",
       "Unauthenticated user dump",
-      "No auth middleware on collection route — junior left it public",
-      { kind: "junior-code", owasp: "API1" }
+      "No auth middleware on collection route — app left it public",
+      { kind: "app-code", owasp: "API1" }
     );
   } else {
     ok(`GET /api/users → ${usersRes.status}`);
@@ -1167,7 +1167,7 @@ async function phaseUnauthDataTheft() {
       "CRITICAL",
       "IDOR on /api/users/:id without auth",
       "Walk the id space — no auth, no ownership check",
-      { kind: "junior-code", owasp: "API1" }
+      { kind: "app-code", owasp: "API1" }
     );
   }
 
@@ -1182,7 +1182,7 @@ async function phaseUnauthDataTheft() {
       "CRITICAL",
       "Debug endpoint leaks JWT signing secret",
       "Junior left /api/debug/config public — forge any identity next",
-      { kind: "junior-code", owasp: "API8" }
+      { kind: "app-code", owasp: "API8" }
     );
   }
 
@@ -1197,7 +1197,7 @@ async function phaseUnauthDataTheft() {
       "HIGH",
       "Unauthenticated PII search",
       "Substring match on address/SSN/email with no auth",
-      { kind: "junior-code", owasp: "API3" }
+      { kind: "app-code", owasp: "API3" }
     );
   }
 }
@@ -1224,7 +1224,7 @@ async function phaseAccountEnumeration() {
       "MEDIUM",
       "Login error messages enable account enumeration",
       "Junior returned different strings for missing user vs wrong password",
-      { kind: "junior-code", owasp: "API2" }
+      { kind: "app-code", owasp: "API2" }
     );
   } else {
     ok("Login errors are uniform");
@@ -1289,7 +1289,7 @@ async function phaseAuthzAndForgery() {
         "CRITICAL",
         "BOLA on /api/orders",
         "Authn present, authz missing — any login reads every order",
-        { kind: "junior-code", owasp: "API1" }
+        { kind: "app-code", owasp: "API1" }
       );
     } else {
       ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
@@ -1317,8 +1317,8 @@ async function phaseAuthzAndForgery() {
     record(
       "CRITICAL",
       "Mass assignment privilege escalation",
-      "No field allowlist on PUT body — junior merged raw JSON into the user",
-      { kind: "junior-code", owasp: "API3" }
+      "No field allowlist on PUT body — app merged raw JSON into the user",
+      { kind: "app-code", owasp: "API3" }
     );
   } else {
     info(`Mass assignment → ${escalate.status}`);
@@ -1342,7 +1342,7 @@ async function phaseAuthzAndForgery() {
       "CRITICAL",
       "Cross-user write without ownership check",
       "Any authenticated client can edit any user id",
-      { kind: "junior-code", owasp: "API1" }
+      { kind: "app-code", owasp: "API1" }
     );
   } else {
     info(`Cross-user write → ${hijack.status}`);
@@ -1362,7 +1362,7 @@ async function phaseAuthzAndForgery() {
       "CRITICAL",
       "Admin route checks login only, not role",
       "requireAuth ≠ requireRole — BFLA",
-      { kind: "junior-code", owasp: "API5" }
+      { kind: "app-code", owasp: "API5" }
     );
   }
 
@@ -1384,7 +1384,7 @@ async function phaseAuthzAndForgery() {
       "CRITICAL",
       "Unsigned JWT (alg:none) accepted",
       "Verification did not pin an algorithm allowlist",
-      { kind: "junior-code", owasp: "API2" }
+      { kind: "app-code", owasp: "API2" }
     );
   } else {
     ok(
@@ -1424,7 +1424,7 @@ async function phaseAuthzAndForgery() {
         "CRITICAL",
         "Forged JWTs accepted (weak/leaked secret)",
         "HS256 + known secret — JWT alone is not a security model",
-        { kind: "junior-code", owasp: "API2" }
+        { kind: "app-code", owasp: "API2" }
       );
     }
   } else {
@@ -1451,8 +1451,8 @@ async function phaseSettingsMerge() {
     record(
       "HIGH",
       "Unauthenticated settings write with mass assignment",
-      "State-changing PUT with no auth and no field allowlist — junior code",
-      { kind: "junior-code", owasp: "API3" }
+      "State-changing PUT with no auth and no field allowlist — app-code",
+      { kind: "app-code", owasp: "API3" }
     );
   } else {
     info(`settings probe → ${put.status}`);
@@ -1518,7 +1518,7 @@ function printReport() {
     return m;
   }, {});
   const byKind = stolen.findings.reduce((m, f) => {
-    const k = f.kind || "junior-code";
+    const k = f.kind || "app-code";
     m[k] = (m[k] || 0) + 1;
     return m;
   }, {});
@@ -1552,7 +1552,7 @@ ${c.bold}${c.red}╔════════════════════
     `  ${c.bold}Forged admin${c.reset}     ${stolen.forgedAdminToken ? c.red + "YES" + c.reset : "no"}`
   );
 
-  console.log(`\n  ${c.bold}What the junior developer believed:${c.reset}`);
+  console.log(`\n  ${c.bold}What the team believed:${c.reset}`);
   console.log(`    ${c.green}"We use Express 5 + JWT. Deployed to the cloud. We're secured."${c.reset}`);
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
@@ -1564,8 +1564,8 @@ ${c.bold}${c.red}╔════════════════════
   );
   console.log(
     `    ${c.dim}kind legend: framework-gap = Express has no control;` +
-      ` misconfig = junior weakened a safer default;` +
-      ` junior-code = app code you wrote wrong.${c.reset}`
+      ` misconfig = demo weakened a safer default;` +
+      ` app-code = vulnerable route / app logic you wrote.${c.reset}`
   );
 
   if (stolen.platformNotes.length) {

@@ -2,7 +2,7 @@
  * VaultPay Express 5 app factory — INTENTIONALLY VULNERABLE.
  *
  * Teaching target: incomplete real-world setup (YouTube JWT tutorial + deploy).
- * Finding kinds (see README): framework-gap | misconfig | junior-code.
+ * Finding kinds (see README): framework-gap | misconfig | app-code.
  * Express 5 requires Node.js >= 18; this package pins engines.node >= 24.
  */
 
