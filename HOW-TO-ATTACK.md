@@ -5,20 +5,20 @@ Complete runbook for **starting the target**, **setting environment variables**,
 | Item | Value |
 | --- | --- |
 | Target app | Intentionally vulnerable **Express 5** + JWT API |
-| Attacker | `attack/attack.mjs` (Node 18+, no extra deps) |
+| Attacker | `attack/attack.mjs` (Node 18+; API package pins Node >= 24) |
 | Live examples | CF: `https://vaultpay-api.devlinduldulao.workers.dev` · Vercel: `https://vaultpay-api.vercel.app` |
 | Frontend | **None** — attack hits the API URL directly |
 | Legal | Only attack systems **you own** or have written permission to test |
 
 Related docs: [`README.md`](README.md) · [`TALK.md`](TALK.md) · [`TEARDOWN.md`](TEARDOWN.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md)
 
-All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `tests/`), unless a step says `cd server`.
+All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `scripts/`), unless a step says `cd server`.
 
 ---
 
 ## 0. Prerequisites
 
-1. **Node.js >= 18** (`node -v`)
+1. **Node.js >= 24** for the API (`server/package.json` engines); attacker script needs modern Node with `fetch` (18+)
 2. Clone or open **this repo**
 3. Install API deps once:
 

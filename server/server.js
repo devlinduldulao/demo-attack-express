@@ -1,7 +1,7 @@
 /**
  * VaultPay API entrypoint — INTENTIONALLY VULNERABLE Express 5 + JWT demo.
  *
- * Express 5 requires Node.js >= 18.
+ * Express 5 requires Node.js >= 18; this package pins engines.node >= 24.
  *
  * Node / Azure:
  *   node server.js

@@ -3,7 +3,7 @@
  *
  * Teaching target: incomplete real-world setup (YouTube JWT tutorial + deploy).
  * Finding kinds (see README): framework-gap | misconfig | junior-code.
- * Express 5 requires Node.js >= 18.
+ * Express 5 requires Node.js >= 18; this package pins engines.node >= 24.
  */
 
 import express from "express";

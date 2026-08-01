@@ -1,13 +1,12 @@
 /**
- * Intentionally unsafe deep-merge (classic prototype-pollution footgun).
+ * Intentionally unsafe deep-merge (mass-assignment / PATCH-style helper).
  *
- * The kind of helper you write to get PATCH semantics: merge the client's JSON
- * into the stored object, recursing into nested objects. It walks
- * attacker-controlled keys with no denylist, so `__proto__` — an ordinary own
- * key on anything from `JSON.parse` — walks straight onto `Object.prototype`.
+ * Walks attacker-controlled keys with no denylist or field allowlist — used by
+ * PUT /api/users/:id and PUT /api/settings so the demo can show raw JSON
+ * overwriting privileged fields (role, balance, feature flags, …).
  *
- * A safe version rejects `__proto__` / `constructor` / `prototype` before
- * recursing, or uses a null-prototype target. This one does neither, on purpose.
+ * Also a classic prototype-pollution footgun if `__proto__` keys are present;
+ * this demo does not drive that attack path in the terminal script.
  */
 
 function isPlainObject(value) {

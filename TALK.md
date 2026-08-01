@@ -48,7 +48,7 @@ Three findings that used to overstate Express defaults (fixed in the script):
 | --- | --- |
 | Oversized body ~1.5 MiB | **misconfig** — `express.json()` defaults to **100 kb**. Demo uses custom ~50 mb parser. |
 | Stack traces | **misconfig** — Express `finalhandler` redacts stacks when `NODE_ENV=production`. Custom handler leaks on purpose. |
-| CORS `*` | **misconfig** (tests only) — bare Express has **no** CORS; junior added `cors` + `origin: "*"`. |
+| CORS `*` | **misconfig** — bare Express has **no** CORS; this app added `cors` + `origin: "*"`. |
 
 **Real Express gaps that still land hard:** no secure headers, `x-powered-by` ON, no rate limit, no request timeout, no authz primitive, no response schema / field allowlist, no SSRF helper.
 
@@ -110,12 +110,12 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 | BOLA orders | “Alice’s JWT reads everyone’s transfers.” |
 | Mass-assign admin | “We PUT `role: admin`. JWT never stopped it.” |
 | Forged admin | “We stopped needing their password.” |
-| `◇ PLATFORM` | “That’s the edge — not the app learning authz.” |
-| `(misconfig)` body/stack | “We weakened Express here on purpose — not a default.” |
+| `◇ PLATFORM` (e.g. CF 1042) | “That’s the edge — not the app learning authz.” |
+| `(misconfig)` body / stack / CORS | “We weakened or bolted this on — not Express inventing it.” |
 
 ## 3:30–4:30 — Edge one-liner
 
-> “Cloudflare blocked the noisy XSS string and Worker self-fetch. It did **not** stop the card dump or the forged admin. Edge filters are not API authorization.”
+> “Cloudflare blocked Worker self-fetch (1042). It did **not** stop the card dump or the forged admin. Edge filters are not API authorization.”
 
 ## 4:30–5:00 — Close
 
@@ -165,61 +165,58 @@ If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 ## 5:00–20:00 — Live attack (primary visual)
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset --gate=YOUR_TOKEN
+# Prefer Vercel or CF — both full climax (9–10 critical, forge YES on latest run)
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama --projector --reset
+# or CF:
+# node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset
+# if gated: add --gate=YOUR_TOKEN
 ```
 
-Local run with the SSRF stand-in wired up automatically:
+Local one-shot (API + optional SSRF stand-in):
 
 ```powershell
-npm run demo:full     # boots API + internal service, then attacks
+npm run demo          # shorter (--skip-flood)
+npm run demo:full     # full flood + internal SSRF stand-in
 ```
 
 **How to use Enter:** finish the sentence, then press Enter. If the room is reading, wait.
 
-**Climax order:** settings and raw TCP finish *before* BOLA/mass-assign/forged JWT so the last LOOT is the forged admin — not “Skipped raw TCP on HTTPS.”
+**Climax order:** settings + raw TCP (skipped on HTTPS) finish *before* BOLA / mass-assign / forge so the last LOOT is the forged admin.
 
-### Phase narration map (OWASP API Top 10)
+### Phase narration map (matches current `attack.mjs`)
 
 | Phase (approx) | OWASP | Line |
 | --- | --- | --- |
 | Missing headers / `X-Powered-By` | API8 | “Framework gap — zero secure headers out of the box.” |
-| Oversized body | API4 | “**misconfig** — Express defaults 100 kb; we raised it.” |
+| CORS `*` | API8 | “**misconfig** — we added open CORS; Express ships none.” |
+| Oversized body | API4 | “**misconfig** — Express `json()` is 100 kb; we raised it.” |
 | Login flood, no 429 | API4 | “No rate limit primitive in Express.” |
-| Path traversal → secret | API1 | “Junior file server. Not Express inventing VFS.” |
+| Path traversal → secret | API1 | “File endpoint with no jail.” |
 | Open redirect | API8 | “`res.redirect(user input)`.” |
-| Open proxy / SSRF | API7 | “Junior `fetch(url)`. Edge may block self-fetch — still an open proxy.” |
-| **SSRF → internal service** | API7 | “Nobody told you your server can reach things you can’t.” |
-| **SSRF → redirect hop** | API7 | “This one *did* add an allowlist. It checked hop one. `fetch` follows 3xx.” |
-| Stack + HTML echo | API8 | “Stack = misconfig; XSS sink = junior code.” |
-| Slow handler | API4 | “No request timeout in the framework.” |
+| Open proxy / SSRF | API7 | “`fetch(user URL)`. CF may 1042 self-fetch; open proxy still real.” |
+| IMDS-class URL | API7 | “No egress allowlist — class matters even when cloud has no IMDS.” |
+| Stack + HTML echo | API8 | “Stack = misconfig; XSS sink = app code.” |
+| Slow handler | API4 | “No request-timeout middleware.” |
 | User dump / IDOR / debug | API1, API3, API8 | “JWT thesis — no password.” |
 | Account enum | API2 | “Different login errors.” |
 | Settings PUT | API3 | “Unauth state change.” |
 | BOLA orders | API1 | “Authn without authz.” |
 | Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
 | Admin stats | API5 | “requireAuth ≠ requireRole (BFLA).” |
-| **`alg:none` — rejected** | API2 | “You’re safe here. A library maintainer did that, not you.” |
+| **`alg:none` — rejected** | API2 | “Library saved you — not app design.” |
 | Forged JWT | API2 | “Secret leak → identity forge.” |
 
 **Scoreboard tension:** call out critical count rising. Pause hard after first LOOT of cards and after forged admin.
 
-### The beats worth rehearsing
+### Beats worth rehearsing
 
-**`alg:none`.** Let it go green. *“You did not configure that. jsonwebtoken v9 pins the algorithm allowlist for string secrets — a maintainer decided it for you. Every other thing on this screen, nobody decided for you.”*
+**`alg:none`.** Let it go green. *“You did not configure that. jsonwebtoken v9 pins HS256 for string secrets — a maintainer decided it for you.”*
 
-**The internal SSRF pivot — say the caveat, don’t let the console say it alone.**
-On a laptop the attacker and the API share a host, so the script honestly prints
-that the stand-in is reachable from here too. Get in front of it:
+**Cloud-only path:** you will **not** see the internal SSRF pivot / redirect hop unless you run local with `--internal` / `npm run demo:full`. On CF/Vercel, teach SSRF with self/external/IMDS-class + platform notes.
 
-> “On my laptop everything is one machine, so I can’t *simulate* a private
-> subnet. What I can show you is the mechanic: I pick the URL, the server
-> fetches it, and the server hands me the body. In production the thing on the
-> other end of that URL is your metadata service or your internal admin API —
-> one hop from the server, unroutable from my seat.”
+**Optional local SSRF pivot** (`npm run demo:full`): say the laptop caveat once — shared host, so the stand-in is reachable from the attacker machine too; the mechanic is still “server fetches URL you chose.”
 
-Then let the credentials land. Don’t apologise twice.
-
-**Daloy / product:** **zero mentions** during this block. Console does not pitch per phase.
+**Product:** **zero mentions** during the attack block.
 
 ---
 
@@ -262,16 +259,18 @@ This is the **original** material most “JWT isn’t enough” talks lack. Give
 
 ```powershell
 # Cloudflare study (already on screen or open ATTACK-RUN-CLOUDFLARE.md)
-# Vercel:
-node attack/attack.mjs https://vaultpay-api.vercel.app --skip-flood
+# Vercel (latest: 10 critical · forge YES):
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --skip-flood
 ```
+
+**Latest engagement (2026-08-01):** CF **9** critical / 4.3s · Vercel **10** critical / 10.1s · both forged admin. (+1 on Vercel = self-SSRF of debug secret.)
 
 **Story structure (not a 17-row table on screen):**
 
 1. **Same app source** — Express 5, intentional vulns, both live.  
-2. **Different edge behavior** — CF may 1042 self-SSRF and WAF-block noisy XSS; Vercel may differ on headers/HSTS/flood.  
-3. **Same pwn** — user dump, BOLA, mass-assign, forged admin still land on **both**.  
-4. **Punchline:** platform notes are `◇ PLATFORM`. App holes are `✗ APP HOLE`. Do not conflate them.
+2. **Different edge behavior** — CF **1042** on self-SSRF; Vercel self-proxy returns secret; IMDS empty on both.  
+3. **Same pwn** — user dump, BOLA, mass-assign, forged admin on **both**.  
+4. **Punchline:** `◇ PLATFORM` vs `✗ APP HOLE`. Do not conflate them.
 
 **Say:**
 

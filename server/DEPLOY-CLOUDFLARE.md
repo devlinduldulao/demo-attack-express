@@ -1,6 +1,6 @@
 # Deploy VaultPay Express 5 to Cloudflare Workers
 
-This API is **Express 5.x** (`express@^5.2.1`, Node.js >= 18). See
+This API is **Express 5.x** (`express@^5.2.1`; package `engines.node` is **>=24**). See
 [`../EXPRESS-V5.md`](../EXPRESS-V5.md), the
 [Express 5 migration guide](https://expressjs.com/en/guide/migrating-5/), and the
 [v5 release post](https://expressjs.com/en/blog/2024-10-15-v5-release/).

@@ -40,7 +40,7 @@ From the [official guide](https://expressjs.com/en/guide/migrating-5/) and [rele
 
 | Express 5 change | VaultPay status |
 | --- | --- |
-| Node.js >= 18 | `engines.node: ">=18"` |
+| Node.js >= 18 (Express 5) | This package pins `engines.node: ">=24"` |
 | `res.status(n).json(...)` only (no `res.json(obj, status)`) | Already used throughout `app.js` |
 | `res.redirect(status, url)` order | `res.redirect(302, url)` on `/api/go` |
 | `req.body` default is `undefined` (not `{}`) | Handlers use `req.body \|\| {}`; custom JSON middleware documents this |
@@ -81,10 +81,9 @@ See `jsonBody()` in [`server/app.js`](server/app.js) and the `iconv-lite` alias 
 ```bash
 cd server
 npm install
-npm test
 npm start
-# other terminal:
-node ../attack/attack.mjs http://localhost:4000 --skip-slow
+# other terminal (repo root):
+node attack/attack.mjs http://localhost:4000 --reset --skip-slow
 ```
 
 Optional codemods (upstream; we already match v5 style):

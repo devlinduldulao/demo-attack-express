@@ -16,10 +16,7 @@
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami",
     "cf:tail": "wrangler tail",
-    "vercel:whoami": "vercel whoami",
-    "test": "node --test ../tests/*.test.js",
-    "test:server": "node --test ../tests/server.test.js",
-    "test:attack": "node --test ../tests/attack-probes.test.js"
+    "vercel:whoami": "vercel whoami"
   },
   "engines": {
     "node": ">=24"

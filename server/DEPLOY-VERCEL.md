@@ -15,7 +15,7 @@ A **private GitHub repo is not required** unless you choose Git integration late
 
 ## Prerequisites
 
-1. Node.js >= 18  
+1. Node.js >= 24 (see `package.json` `engines`)
 2. Vercel CLI logged in (`vercel whoami`)  
 3. From this folder (`server/`):
 

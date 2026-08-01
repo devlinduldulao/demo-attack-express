@@ -7,7 +7,7 @@
  *   app.listen(PORT)
  *   export default httpServerHandler({ port: PORT })
  *
- * App is Express 5.x (Node >= 18, see https://expressjs.com/en/guide/migrating-5/).
+ * App is Express 5.x (package engines.node >= 24; see https://expressjs.com/en/guide/migrating-5/).
  *
  * Local:   npm run dev:cf
  * Deploy:  npm run deploy:cf

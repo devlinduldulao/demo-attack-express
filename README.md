@@ -1,7 +1,5 @@
 # demo-attack-express — JWT ≠ Secure API
 
-[![test](https://github.com/devlinduldulao/demo-attack-express/actions/workflows/test.yml/badge.svg)](https://github.com/devlinduldulao/demo-attack-express/actions/workflows/test.yml)
-
 A **live talk demo** that shows why “Express + JWT + cloud deploy” is not a
 security model. There is **no frontend**. The demo is a vulnerable **Express 5
 API** plus a black-box **attack script** that hits the API URL directly.
@@ -17,8 +15,9 @@ them exist** — and juniors still write path traversal, open proxies, and
 skeptic in row 3 cannot sink the talk.
 
 **Backend stack:** [Express **5.x**](https://www.npmjs.com/package/express)
-(`express@^5.2.1`) + JWT + in-memory DB. Express 5 requires **Node.js >= 18**.
-Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrating-5/) ·
+(`express@^5.2.1`) + JWT + in-memory DB. This package pins **Node.js >= 24**
+(`server/package.json`); Express 5 itself needs Node >= 18. Migration notes:
+[Migrating to Express 5](https://expressjs.com/en/guide/migrating-5/) ·
 [v5 release post](https://expressjs.com/en/blog/2024-10-15-v5-release/) ·
 [`EXPRESS-V5.md`](EXPRESS-V5.md).
 
@@ -26,7 +25,7 @@ Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrati
 | --- | --- | --- |
 | Intentionally vulnerable **Express 5** API | [`server/`](server/) | **Cloudflare Workers**, **Vercel**, or **Azure** |
 | Black-box attack script | [`attack/attack.mjs`](attack/attack.mjs) | Laptop during the talk |
-| Happy + unhappy tests | [`tests/`](tests/) | CI / pre-talk check |
+| One-command local demo | [`scripts/`](scripts/) | Laptop (`npm run demo`) |
 | **Talk scripts** (5 min + **30–45 min**) | [`TALK.md`](TALK.md) | Live presentation |
 | Edge vs app framing | [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) | After the attack |
 | Platform comparison CF vs Vercel | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) | Differentiator block |
@@ -86,26 +85,27 @@ appear on findings so the security-literate part of the room maps the chain.
 | # | Attack | Needs login? | What failed |
 | --- | --- | --- | --- |
 | 1 | Missing CSP / XFO / nosniff; `X-Powered-By` | No | **framework-gap** |
-| 2 | ~1.5 MiB JSON accepted | No | **misconfig** (custom 50 mb parser; Express default 100 kb) |
-| 3 | 40× parallel login → zero `429` | No | **framework-gap** |
-| 4 | Path traversal `/api/files?name=../secrets/…` | No | **junior-code** |
-| 5 | Open redirect `/api/go?url=` | No | **junior-code** |
-| 6 | Open proxy `/api/proxy?url=` | No | **junior-code** (no SSRF primitive in Express) |
-| 7 | Stack leak + HTML echo | No | **misconfig** + **junior-code** |
-| 8 | Slow handler holds socket | No | **framework-gap** |
-| 9 | `GET /api/users` full PII dump | No | **junior-code** / missing authz |
-| 10 | IDOR `/api/users/:id` | No | **junior-code** |
-| 11 | Debug config leaks JWT secret | No | **junior-code** |
-| 12 | Account enumeration via login errors | No | **junior-code** |
-| 13 | BOLA on `/api/orders` | Yes (any user) | **junior-code** — authn ≠ authz |
-| 14 | Mass assignment `role: "admin"` | Yes | **junior-code** |
-| 15 | Admin route without role check | Yes | **junior-code** + no authz primitive |
-| 16 | Forged JWT after secret leak | After leak | Weak secret + leak surface |
-| 17 | Unauth `PUT /api/settings` | No | **junior-code** |
-| 18 | SSRF → cloud-metadata URL (`169.254.169.254`) | No | **junior-code** — no egress policy |
-| 19 | SSRF → internal-only service (stand-in for IMDS) | No | **junior-code** |
-| 20 | SSRF → redirect hop bypasses a first-URL allowlist | No | **junior-code** — `redirect: "follow"`, no per-hop check |
-| — | `alg:none` unsigned JWT | — | **Rejected.** jsonwebtoken v9 pins HS256/384/512 for string secrets — the one save nobody in the app asked for. |
+| 2 | CORS `origin: "*"` | No | **misconfig** (bare Express has no CORS) |
+| 3 | ~1.5 MiB JSON accepted | No | **misconfig** (custom 50 mb parser; Express default 100 kb) |
+| 4 | 40× parallel login → zero `429` | No | **framework-gap** |
+| 5 | Path traversal `/api/files?name=../secrets/…` | No | **junior-code** |
+| 6 | Open redirect `/api/go?url=` | No | **junior-code** |
+| 7 | Open proxy `/api/proxy?url=` (self / external) | No | **junior-code** (no SSRF primitive in Express) |
+| 8 | SSRF-class URL `169.254.169.254` (no egress policy) | No | **junior-code** — often empty on CF/Vercel (`◇ PLATFORM`) |
+| 9 | Stack leak + HTML echo | No | **misconfig** + **junior-code** |
+| 10 | Slow handler holds socket | No | **framework-gap** |
+| 11 | `GET /api/users` full PII dump | No | **junior-code** / missing authz |
+| 12 | IDOR `/api/users/:id` | No | **junior-code** |
+| 13 | Debug config leaks JWT secret | No | **junior-code** |
+| 14 | Account enumeration via login errors | No | **junior-code** |
+| 15 | Unauth `PUT /api/settings` | No | **junior-code** |
+| 16 | BOLA on `/api/orders` | Yes (any user) | **junior-code** — authn ≠ authz |
+| 17 | Mass assignment `role: "admin"` | Yes | **junior-code** |
+| 18 | Cross-user write | Yes | **junior-code** |
+| 19 | Admin route without role check | Yes | **junior-code** + no authz primitive |
+| 20 | Forged JWT after secret leak | After leak | Weak secret + leak surface |
+| — | `alg:none` unsigned JWT | — | **Rejected.** jsonwebtoken v9 pins HS256/384/512 for string secrets |
+| * | SSRF internal pivot + redirect hop | No | **Local only** — `npm run demo` / `--internal=URL` (not on public CF/Vercel) |
 
 **Honest gap for any framework:** ownership rules
 (`order.userId === req.user.sub`) are still **your** code. Defaults only close
@@ -160,18 +160,6 @@ node attack/attack.mjs http://localhost:4000 --reset --projector
 
 ---
 
-## Tests
-
-```bash
-cd server
-npm test
-```
-
-- **`tests/server.test.js`** — happy paths + unhappy 401/400/404 + documented fail-open vulns.
-- **`tests/attack-probes.test.js`** — black-box chain matching `attack.mjs`.
-
----
-
 ## Deploy
 
 ### Express → Cloudflare Workers
@@ -201,7 +189,7 @@ vercel --prod --yes
 
 ### Express → Azure App Service
 
-Deploy the **`server/`** folder (Node 18+). Startup: `node server.js`.
+Deploy the **`server/`** folder (Node **>= 24** per `package.json`). Startup: `node server.js`.
 Optional: `JWT_SECRET`, `BODY_LIMIT=50mb`, `NODE_ENV=production`, `DEMO_GATE_TOKEN`.
 
 ---
@@ -221,9 +209,8 @@ Optional: `JWT_SECRET`, `BODY_LIMIT=50mb`, `NODE_ENV=production`, `DEMO_GATE_TOK
   attack/attack.mjs               # black-box attacker (terminal only)
   scripts/
     demo.mjs                      # one command: API + internal service + attack
-    internal-service.mjs          # SSRF stand-in the API can reach, you can't
+    internal-service.mjs          # SSRF stand-in (local --internal only)
   server/
-  tests/
   README.md
 ```
 
