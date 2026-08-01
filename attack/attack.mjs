@@ -271,21 +271,19 @@ let reqSeq = 0;
 /**
  * @param {string} method
  * @param {string} path
- * @param {{ headers?: Record<string,string>, body?: unknown, rawBody?: string, timeoutMs?: number, label?: string, silent?: boolean }} [opts]
+ * @param {{ headers?: Record<string,string>, body?: unknown, timeoutMs?: number, label?: string, silent?: boolean }} [opts]
  */
 async function http(method, path, opts = {}) {
   const {
     headers = {},
     body,
-    rawBody,
     timeoutMs = 15_000,
     label,
     silent = false,
   } = opts;
 
   const id = ++reqSeq;
-  const payload =
-    rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : undefined;
+  const payload = body !== undefined ? JSON.stringify(body) : undefined;
   const bytes = payload ? Buffer.byteLength(payload) : 0;
 
   if (showWire && !silent) {
@@ -1242,16 +1240,14 @@ const DEMO_CREDENTIALS = [
 
 /**
  * Log in with the first seed account that works.
- * @param {{ silent?: boolean }} [opts]
  * @returns {Promise<{ email: string, password: string, token: string, user: any } | null>}
  */
-async function demoLogin(opts = {}) {
+async function demoLogin() {
   for (const cred of DEMO_CREDENTIALS) {
-    if (!opts.silent) narrate(`Trying demo login ${cred.email}…`);
+    narrate(`Trying demo login ${cred.email}…`);
     const res = await http("POST", "/api/auth/login", {
       body: cred,
       label: `login:${cred.email}`,
-      silent: Boolean(opts.silent),
     });
     if (res.status === 200 && res.json?.token) {
       return { ...cred, token: res.json.token, user: res.json.user };

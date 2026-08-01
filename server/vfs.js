@@ -12,7 +12,7 @@ import path from "node:path";
 
 const posix = path.posix;
 
-export const FILES = {
+const FILES = {
   "data/public/welcome.txt":
     "Welcome to VaultPay public files.\n\n" +
     "This file is meant to be readable.\n" +

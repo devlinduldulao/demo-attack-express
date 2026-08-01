@@ -10,7 +10,7 @@
  * recursing, or uses a null-prototype target. This one does neither, on purpose.
  */
 
-export function isPlainObject(value) {
+function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 

@@ -1,4 +1,0 @@
-Welcome to VaultPay public files.
-
-This file is meant to be readable.
-The secrets/ folder next door is NOT meant to be readable — but path traversal will reach it.

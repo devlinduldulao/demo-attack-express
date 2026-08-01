@@ -460,4 +460,4 @@ function createApp(opts = {}) {
   return { app, jwtSecret: secret, db };
 }
 
-export { createApp, JWT_SECRET, BODY_LIMIT };
+export { createApp };

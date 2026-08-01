@@ -129,7 +129,7 @@ function seedSettings() {
   };
 }
 
-export const state = {
+const state = {
   users: seedUsers(),
   orders: seedOrders(),
   settings: seedSettings(),
@@ -137,7 +137,7 @@ export const state = {
   nextUserId: 5,
 };
 
-export function reset() {
+function reset() {
   state.users = seedUsers();
   state.orders = seedOrders();
   state.settings = seedSettings();
@@ -145,7 +145,7 @@ export function reset() {
   state.nextUserId = 5;
 }
 
-export function publicUser(user) {
+function publicUser(user) {
   return {
     id: user.id,
     email: user.email,
@@ -156,16 +156,16 @@ export function publicUser(user) {
   };
 }
 
-export function fullUser(user) {
+function fullUser(user) {
   const { password, ...rest } = user;
   return { ...rest, passwordHash: `plain:${password}` };
 }
 
-export function dumpUser(user) {
+function dumpUser(user) {
   return { ...user };
 }
 
-/** Default export matches the old CJS shape used by app.js and tests. */
+/** Default export used by app.js. */
 const db = {
   state,
   reset,

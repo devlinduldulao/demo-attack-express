@@ -2,5 +2,3 @@ node_modules
 .wrangler
 .dev.vars
 *.log
-# Secrets for path-traversal demo live in vfs.js (in-memory), not on disk.
-# Ignoring data/secrets is harmless documentation of intent only.
