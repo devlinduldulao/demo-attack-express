@@ -28,7 +28,7 @@ npm install
 
 ## Why upgrade the demo to v5?
 
-Junior tutorials still ship “Express + JWT” without authz. Using **current** Express avoids the false comfort of “we’re on old Express, that’s the problem.” The holes in this demo are **application design**, not “because Express 4 is ancient.”
+Tutorials still ship “Express + JWT” without authz. Using **current** Express avoids the false comfort of “we’re on old Express, that’s the problem.” The holes in this demo are **application design**, not “because Express 4 is ancient.”
 
 Express 5 is intentionally a **boring** major: better security baseline in the framework, path-to-regexp hardening, promise rejection forwarding, body-parser updates — **not** automatic rate limits, ownership checks, or secure headers for your bank API.
 

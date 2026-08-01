@@ -54,7 +54,7 @@ you almost nothing” framing if you use the honest labels.
 | --- | --- |
 | “We added JWT, so the API is secured” | False. Script proves most holes need **no** login. |
 | Unauth PII, IDOR, BOLA, mass-assign, BFLA, forged JWT | Real chain; nobody argues with it. |
-| Path traversal / open redirect / open proxy | **Junior code** in this server — not Express inventing them. |
+| Path traversal / open redirect / open proxy | **App code** in this server — not Express inventing them. |
 | “Express accepts 1.5 MiB bodies by default” | **False.** `express.json()` is **100 kb**. Demo uses a custom ~50 mb parser (**misconfig**). |
 | “Express leaks stacks in production” | **False** by default — `finalhandler` redacts when `NODE_ENV=production`. Demo overrides (**misconfig**). |
 | “Express CORS is `*` by default” | **False.** Bare Express has **no** CORS. Demo added `cors` + `origin: "*"` (**misconfig**). |

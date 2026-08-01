@@ -620,7 +620,7 @@ async function phaseBodyLimit() {
       record(
         "HIGH",
         "Demo misconfig: custom parser allows ~50mb bodies",
-        "Not an Express default. body-parser/express.json limit defaults to '100kb' (413 entity.too.large). Junior replaced that with an explicit ~50mb parser (Workers + demo).",
+        "Not an Express default. body-parser/express.json limit defaults to '100kb' (413 entity.too.large). Demo replaced that with an explicit ~50mb parser (Workers + attack).",
         { kind: "misconfig", owasp: "API4" }
       );
     } else {
@@ -733,7 +733,7 @@ async function phasePathTraversal() {
     record(
       "CRITICAL",
       "Path traversal reads server secret files",
-      "Junior vfs/join with no containment — Express did not invent this endpoint",
+      "App vfs/join with no containment — Express did not invent this endpoint",
       { kind: "app-code", owasp: "API1" }
     );
   } else {
@@ -743,7 +743,7 @@ async function phasePathTraversal() {
 
 async function phaseOpenRedirect() {
   step("Open redirect on /api/go (no login)");
-  intent("Junior res.redirect(user input) with no allowlist — framework has no safe-redirect helper.");
+  intent("App res.redirect(user input) with no allowlist — framework has no safe-redirect helper.");
   const evil = "https://evil-phish.example/steal";
   narrate(`Requesting redirect to ${evil}…`);
   const res = await http("GET", `/api/go?url=${encodeURIComponent(evil)}`, {
@@ -1066,7 +1066,7 @@ async function phaseStackAndEcho() {
     loot("reflected", mild);
     record(
       "HIGH",
-      "Junior code: reflected HTML echo sink (XSS class)",
+      "App code: reflected HTML echo sink (XSS class)",
       "Not a framework default — developer built text/html echo of query params",
       { kind: "app-code", owasp: "API8" }
     );
@@ -1085,7 +1085,7 @@ async function phaseStackAndEcho() {
       loot("reflected", xss);
       record(
         "HIGH",
-        "Junior code: reflected XSS via HTML echo endpoint",
+        "App code: reflected XSS via HTML echo endpoint",
         "Developer built this sink — Express does not echo HTML by default",
         { kind: "app-code", owasp: "API8" }
       );
@@ -1119,7 +1119,7 @@ async function phaseSlowTimeout() {
     record(
       "MEDIUM",
       "No application request-timeout budget",
-      "Express core has no per-request timeout middleware. Node http.Server requestTimeout default is 300s (not a 3s app budget). Junior left /api/slow open (app caps at 120s only).",
+      "Express core has no per-request timeout middleware. Node http.Server requestTimeout default is 300s (not a 3s app budget). App left /api/slow open (caps at 120s only).",
       { kind: "framework-gap", owasp: "API4" }
     );
   } else if (res.status === 400 || res.status === 404) {
@@ -1181,7 +1181,7 @@ async function phaseUnauthDataTheft() {
     record(
       "CRITICAL",
       "Debug endpoint leaks JWT signing secret",
-      "Junior left /api/debug/config public — forge any identity next",
+      "App left /api/debug/config public — forge any identity next",
       { kind: "app-code", owasp: "API8" }
     );
   }
@@ -1223,7 +1223,7 @@ async function phaseAccountEnumeration() {
     record(
       "MEDIUM",
       "Login error messages enable account enumeration",
-      "Junior returned different strings for missing user vs wrong password",
+      "App returned different strings for missing user vs wrong password",
       { kind: "app-code", owasp: "API2" }
     );
   } else {

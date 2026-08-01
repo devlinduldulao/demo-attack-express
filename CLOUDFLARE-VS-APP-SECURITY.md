@@ -95,7 +95,7 @@ External open proxy (`example.com`) still succeeded → **HIGH** app-code.
 | `✗ APP HOLE` | Application / app-code / misconfig finding |
 | `◇ PLATFORM` | Edge/runtime blocked the **probe** — app may still be open |
 | `(framework-gap)` | Express does not provide this control by default |
-| `(misconfig)` | Junior weakened a safer default (body, stack, …) |
+| `(misconfig)` | Demo weakened a safer default (body, stack, …) |
 | `(app-code)` | Vulnerable route / app logic you wrote (not Express default) |
 
 ---
