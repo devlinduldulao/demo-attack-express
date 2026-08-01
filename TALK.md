@@ -339,3 +339,13 @@ Do **not** open a 17-row feature matrix. Link README later.
 - Express defaults allow 50 mb bodies / open CORS / prod stacks (they don’t)  
 - A framework invents your ownership rules for free  
 - Product pitch during every phase (close only)
+
+---
+
+## Further reading (same principle as this demo)
+
+Not slides — optional handout / Q&A / “why this talk exists.”
+
+| Source | Why it fits |
+| --- | --- |
+| [Secure defaults beat secure training](https://www.devsecstation.com/2602204/episodes/19503769-secure-defaults-beat-secure-training) (DevSecStation / Tanya Janca) | Core idea: most holes aren’t “developers don’t know” — the **easy path is insecure**. Training relies on memory and willpower; **defaults shape behavior**. Matches this demo’s thesis: incomplete setup feels normal; JWT alone is not a security model.  use after the attack, not during the run. |
