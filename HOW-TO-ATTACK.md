@@ -46,7 +46,6 @@ Cloudflare uses `wrangler.toml` `[vars]` (and optional `wrangler secret`) instea
 | `BODY_LIMIT` | No | `50mb` | Node / Azure / CF vars | Max JSON body size (**misconfig** for demo — Express `json()` default is 100kb). |
 | `NODE_ENV` | No | `development` if unset | Node / Azure / CF vars | Shown in `/api/debug/config`. Use `production` on deploy. |
 | `DEMO_GATE_TOKEN` | Recommended on public deploys | unset (open) | Node / Azure / CF secret / Vercel env | When set, every request needs header `X-VaultPay-Demo: <token>` or gets 404. See [`TEARDOWN.md`](TEARDOWN.md). |
-| `HARDENED` | No | unset (vulnerable) | Node / Azure / CF vars | Set to `1` for the green run: ownership, role checks, 100kb body, secure headers, no debug leak. |
 | `DEMO_RESET_TOKEN` | No | unset | Any | If set, `POST /api/demo/reset` requires `X-VaultPay-Reset`. |
 | `CF_WORKER` | Auto | set by `worker.mjs` | Cloudflare only | Marks runtime as `cloudflare-workers` in debug config. |
 | `RUNTIME` | No | `node` | Any | Optional override for debug `runtime` label. |
@@ -150,8 +149,7 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 One-command local:
 
 ```powershell
-npm run demo              # vulnerable
-npm run demo:hardened     # green run → 0 critical
+npm run demo              # boots vulnerable API + full attack
 ```
 
 Findings are tagged `framework-gap` | `misconfig` | `junior-code` plus OWASP API ids.

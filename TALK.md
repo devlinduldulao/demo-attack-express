@@ -135,13 +135,12 @@ Optional 30s product note (do **not** pitch during the run): secure-default fram
 | Block | Time | Goal |
 | --- | --- | --- |
 | Frame + JWT myth | 0–5 min | Thesis on the wall |
-| Live attack (CF or local) | 5–18 min | Scoreboard; Enter; **forgery is last phase** |
-| What is / isn’t a default | 18–23 min | Disarm the skeptic |
-| **Green run** (`HARDENED=1`) | 23–28 min | Same script → 0 critical — kills “product ad” read |
-| **Same code, two clouds** | 28–38 min | Differentiator — expand this |
-| Close + Q&A | 38–45 min | Framework note last 30s only |
+| Live attack (CF or local) | 5–20 min | Scoreboard; Enter; **forgery is last phase** |
+| What is / isn’t a default | 20–25 min | Disarm the skeptic (misconfig vs real gaps) |
+| **Same code, two clouds** | 25–38 min | Differentiator — expand this |
+| Close + Q&A | 38–45 min | What proper setup means (spoken, not a second mode) |
 
-If the slot is **~30 min**, keep green run + drop one cloud. If **5 min**, skip green run and clouds.
+If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 
 ---
 
@@ -199,27 +198,7 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 
 ---
 
-## 23:00–28:00 — Green run (plain Express fixed)
-
-**Why:** the room just watched red. Show the same script go quiet.
-
-```powershell
-# Local one-liner, or a second hardened Worker URL
-npm run demo:hardened
-# or:
-# HARDENED=1 on a second deploy, then:
-# node attack/attack.mjs https://vaultpay-api-hardened… --quiet
-```
-
-**Say:**
-
-> “Same Express 5. Ownership checks, field allowlist, requireRole, 100 kb body, headers, no debug surface. Attack script: **0 critical**. You can fix this without buying a framework. A framework that *starts* here is optional insurance for juniors.”
-
-Do **not** name a product until the last 30 seconds of the close.
-
----
-
-## 18:00–23:00 — Disarm the skeptic (defaults vs junior)
+## 20:00–25:00 — Disarm the skeptic (defaults vs incomplete setup)
 
 **Say:**
 

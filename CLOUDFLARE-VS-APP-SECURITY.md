@@ -105,6 +105,6 @@ External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
 1. **Authn ≠ authz.**  
 2. **JWT is one control**, not a security model.  
 3. **Edge ≠ API authorization** — same code, two clouds, both pwned.  
-4. **Nothing is not a security model** — fix ownership in plain Express (`HARDENED=1` green run) or start from fail-closed defaults.
+4. **Nothing is not a security model** — ownership, allowlists, closed debug, egress policy: you must set them up.
 
 Only attack systems you own. Tear down public demos when finished — [`TEARDOWN.md`](TEARDOWN.md).

@@ -7,7 +7,6 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:hardened": "node start-hardened.mjs",
     "dev": "node --watch server.js",
     "dev:cf": "wrangler dev",
     "dev:vercel": "vercel dev",

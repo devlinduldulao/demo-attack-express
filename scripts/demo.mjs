@@ -8,8 +8,7 @@
  *
  * Usage (repo root):
  *   npm run demo
- *   npm run demo:hardened   # green run
- *   node scripts/demo.mjs --hardened --skip-flood
+ *   node scripts/demo.mjs --skip-flood
  */
 
 import { spawn } from "node:child_process";
@@ -21,10 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const serverDir = path.join(root, "server");
 const attackScript = path.join(root, "attack", "attack.mjs");
-
-const args = process.argv.slice(2);
-const hardened = args.includes("--hardened") || process.env.HARDENED === "1";
-const attackArgs = args.filter((a) => a !== "--hardened");
+const attackArgs = process.argv.slice(2);
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -56,7 +52,6 @@ const base = `http://127.0.0.1:${port}`;
 const env = {
   ...process.env,
   PORT: String(port),
-  HARDENED: hardened ? "1" : "",
   NODE_ENV: process.env.NODE_ENV || "development",
 };
 
@@ -82,17 +77,13 @@ if (!ready) {
   process.exit(1);
 }
 
-console.log(`\n  demo: server ready at ${base} (hardened=${hardened})\n`);
+console.log(`\n  demo: vulnerable API ready at ${base}\n`);
 
-const attack = spawn(
-  process.execPath,
-  [attackScript, base, "--reset", ...attackArgs],
-  {
-    cwd: root,
-    env: process.env,
-    stdio: "inherit",
-  }
-);
+const attack = spawn(process.execPath, [attackScript, base, "--reset", ...attackArgs], {
+  cwd: root,
+  env: process.env,
+  stdio: "inherit",
+});
 
 const code = await new Promise((resolve) => {
   attack.on("close", resolve);

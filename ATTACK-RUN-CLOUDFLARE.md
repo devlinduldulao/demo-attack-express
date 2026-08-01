@@ -2,7 +2,7 @@
 
 **Target:** `https://vaultpay-api.devlinduldulao.workers.dev`  
 **Stack under test:** **Express 5** + JWT (intentionally vulnerable VaultPay demo)  
-**Deployed:** 2026-07-31 (local `wrangler deploy` from current `server/` — health returns `"hardened":false`)  
+**Deployed:** 2026-07-31 (local `wrangler deploy` from current `server/`)  
 **Attack started:** 2026-07-31T20:07:51Z  
 **Attacker flags:** `--reset --json` (full flood + slow; no gate)
 
@@ -27,7 +27,7 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · comparison: [`PL
 
 | Question | Answer |
 | --- | --- |
-| Is production Express 5? | **Yes.** Health: `"express":"5"`, `"hardened":false`. |
+| Is production Express 5? | **Yes.** Health: `"express":"5"`. |
 | Did JWT make the API “secure”? | **No.** Most damage needed **no password**. |
 | Did the demo work after code refresh? | **Yes.** Reset → PII → secret → BOLA → mass-assign → **forged admin last**. |
 | What underperformed? | **Cloudflare platform** blocked self-SSRF (`1042`). Mild HTML echo still proved the XSS sink. Not Express learning security. |
@@ -42,7 +42,7 @@ Climax is **last** (Phase 15). Settings + raw TCP are no longer after forgery.
 | Phase | Title | Outcome on CF (this run) |
 | --- | --- | --- |
 | 01 | Demo reset | `POST /api/demo/reset` → ok (clean Alice/Bob) |
-| 02 | Recon | Health 200, `hardened=false` |
+| 02 | Recon | Health 200 |
 | 03 | Missing secure headers | **MEDIUM** framework-gap + **INFO** x-powered-by |
 | 04 | Oversized body (~1.5 MiB) | **HIGH** misconfig (401, not 413) |
 | 05 | Login flood ×40 | **HIGH** framework-gap — histogram `{"401":40}`, 0×429, ~404 ms |
@@ -140,4 +140,3 @@ Mild HTML echo was **not** WAF-blocked on this run (unlike older noisy `onerror=
 4. **Elapsed 4.6s / 68 requests** — quoteable after the demo.  
 5. **Forgery last** — report climax matches the last LOOT on screen.
 
-Local green contrast (not this URL): `npm run demo:hardened` → **0 critical**.

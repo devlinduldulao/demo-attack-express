@@ -23,7 +23,7 @@ GitHub private vs public **does not matter** for either cloud deploy in this rep
 | Live result | API PWNED — **9** critical · **68** req · **4.6s** | API PWNED — **10** critical · **67** req · **10.0s** |
 | Findings total | 21 | 21 |
 | By kind | gap 4 · misconfig 2 · junior 15 | gap 4 · misconfig 2 · junior 15 |
-| `"express":"5"` / `hardened:false` | Yes | Yes |
+| `"express":"5"` | Yes | Yes |
 | Unauth PII / IDOR / debug secret | CRITICAL | CRITICAL |
 | Path traversal JWT secret | CRITICAL | CRITICAL |
 | BOLA / mass-assign / admin / forge | CRITICAL (climax last) | CRITICAL (climax last) |
@@ -60,12 +60,6 @@ GitHub private vs public **does not matter** for either cloud deploy in this rep
 5. Finding **kinds** keep the room honest: body limit and stack leak are **misconfig**, not Express defaults.
 
 **Screen slide for edge nuance:** [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md)
-
-**Local green contrast (same attack script):**
-
-```powershell
-npm run demo:hardened   # DEMO RESULT: 0 critical
-```
 
 ---
 

@@ -16,9 +16,6 @@ them exist** — and juniors still write path traversal, open proxies, and
 `requireAuth` without role checks. This repo labels findings honestly so a
 skeptic in row 3 cannot sink the talk.
 
-**Green run:** same attack script against `HARDENED=1` → **0 critical**. Fix it
-in plain Express first; frameworks that default closed are the optional close.
-
 **Backend stack:** [Express **5.x**](https://www.npmjs.com/package/express)
 (`express@^5.2.1`) + JWT + in-memory DB. Express 5 requires **Node.js >= 18**.
 Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrating-5/) ·
@@ -139,21 +136,15 @@ Full scripts: **[`TALK.md`](TALK.md)**.
 ## Local quick start
 
 ```bash
-# One command (boots server, runs attack, exits)
+# One command (boots vulnerable server, runs attack, exits)
 npm install --prefix server
-npm run demo              # vulnerable → API PWNED
-npm run demo:hardened     # green run → 0 critical
+npm run demo
 
 # Or two terminals
 cd server && npm start
 # other terminal, repo root:
 node attack/attack.mjs http://localhost:4000 --drama --reset --projector
 ```
-
-| Mode | How | Attack expectation |
-| --- | --- | --- |
-| Vulnerable (default) | `npm start` / `npm run demo` | Many CRITICAL, forged admin JWT |
-| Hardened | `HARDENED=1` / `npm run demo:hardened` | **0 critical** |
 
 | Email | Password | Role |
 | --- | --- | --- |

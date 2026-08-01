@@ -3,7 +3,7 @@
 **Target:** `https://vaultpay-api.vercel.app`  
 **Stack:** **Express 5** + JWT (VaultPay, intentionally vulnerable)  
 **Runtime:** `vercel-serverless` (from `/api/debug/config`)  
-**Health proof:** `GET /api/health` → `"express":"5"`, `"hardened":false`  
+**Health proof:** `GET /api/health` → `"express":"5"`  
 **Deploy:** local `vercel --prod --yes` from `server/` (2026-07-31, current tree)  
 **Attack:** 2026-07-31T20:07:56Z · flags `--reset --json`
 
@@ -42,7 +42,7 @@ Cloudflare sister study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
 | Phase | Title | Outcome on Vercel (this run) |
 | --- | --- | --- |
 | 01 | Demo reset | ok |
-| 02 | Recon | Health 200, `hardened=false` |
+| 02 | Recon | Health 200 |
 | 03 | Headers | HSTS **present** (edge); still missing CSP/XFO/nosniff; **x-powered-by: Express** |
 | 04 | Oversized body | **HIGH** misconfig — ~1.5 MiB accepted |
 | 05 | Login flood ×40 | **HIGH** — `{"401":40}`, 0×429, ~1075 ms |

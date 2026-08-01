@@ -115,6 +115,25 @@ describe("attack probes — unauthenticated chain", () => {
     assert.equal(res.headers.get("x-frame-options"), null);
     assert.equal(res.headers.get("content-security-policy"), null);
   });
+
+  it("CORS allows evil Origin with *", async () => {
+    const res = await http("GET", "/api/health", {
+      headers: { Origin: "https://evil-attacker.example" },
+    });
+    assert.equal(res.status, 200);
+    const acao = res.headers.get("access-control-allow-origin");
+    assert.ok(acao === "*" || acao === "https://evil-attacker.example");
+  });
+
+  it("open proxy accepts cloud-metadata class URL (may fail upstream off EC2)", async () => {
+    const res = await http(
+      "GET",
+      `/api/proxy?url=${encodeURIComponent("http://169.254.169.254/latest/meta-data/")}`
+    );
+    // Vulnerable app must not refuse the URL at the route (404 = endpoint missing).
+    // 200 / 502 / timeout-as-502 are all "proxy tried" — not a missing route.
+    assert.notEqual(res.status, 404);
+  });
 });
 
 describe("attack probes — authenticated abuse chain", () => {
