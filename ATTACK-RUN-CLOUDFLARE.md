@@ -23,7 +23,8 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 **`alg:none`:** rejected (401) — jsonwebtoken v9 pins HS256 for string secrets  
 
 Raw log (local, gitignored): `ATTACK-RUN-CLOUDFLARE-LATEST.log`  
-Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
+Re-captured after **Whose fault?** report landed in `attack/attack.mjs` — search the log for `Whose fault?` / `Misconfig detail`.  
+Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · talk script: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs)
 
 ---
 
@@ -75,7 +76,63 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 
 ---
 
-## 4. Platform notes (this run)
+## 4. Misconfig (3) — whose fault on this Cloudflare deploy?
+
+These **HIGH/MEDIUM** lines appear on the Worker with `(misconfig)` in the terminal.  
+They are **not** Cloudflare defaults and **not** Express inventing open CORS / huge bodies / prod stacks.
+
+| Finding | Severity | Terminal kind | Not whose fault | Is whose fault | Shipped how |
+| --- | --- | --- | --- | --- | --- |
+| CORS misconfig allows any browser origin | HIGH | `misconfig` | CF edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
+| Demo misconfig: custom ~50mb bodies | HIGH | `misconfig` | CF edge, Express `json()` 100kb | Demo app + vars | `BODY_LIMIT = "50mb"` in `wrangler.toml` + `jsonBody` |
+| Custom error handler leaks stack | MEDIUM | `misconfig` | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
+
+**Attack phases that produce them** (same `attack/attack.mjs` on every host):
+
+| Phase | Request | Finding |
+| --- | --- | --- |
+| CORS misconfig | `GET /api/health` + `Origin: https://evil-attacker.example` | open `ACA-Origin: *` |
+| Oversized JSON body | `POST /api/auth/login` ~1.5 MiB body | accepted (not 413) |
+| Stack / error path | `GET /api/boom` (and related error path) | `stack` in JSON |
+
+### Terminal excerpt (committed proof — from live CF run)
+
+Full wire log is gitignored (`ATTACK-RUN-CLOUDFLARE-LATEST.log`). This block is what the engagement report prints after the three misconfig phases (and the rest of the run):
+
+```text
+  PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
+  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
+  · cors package with origin: '*' — not an Express default (bare Express has no CORS)...
+
+  PHASE 05  ·  Oversized JSON body (demo misconfig — not Express default)
+  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
+  · Not an Express default. body-parser/express.json limit defaults to '100kb'...
+
+  ... later ...
+  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
+
+  By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
+
+  Whose fault? (read the kind tag on every finding):
+    (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
+                     Not Express defaults. Not Cloudflare/Vercel inventing them.
+    (framework-gap) 4 — Express does not ship the control ...
+    (app-code)     16 — vulnerable routes you wrote ...
+    ◇ PLATFORM      N — edge/runtime blocked a probe; does not mean the API is authorized.
+
+  Misconfig detail (cloud hosts still show these — same app.js):
+  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
+  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
+  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
+```
+
+`◇ PLATFORM` (e.g. **1042**) is the only “Cloudflare did something” class in this study — and it does **not** fix authz or the three misconfigs above.
+
+See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty) · talk: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs).
+
+---
+
+## 5. Platform notes (this run)
 
 | Probe | CF result |
 | --- | --- |
@@ -86,7 +143,7 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 
 ---
 
-## 5. Phase order (current attacker)
+## 6. Phase order (current attacker)
 
 Reset → recon → headers → CORS → body → flood → traversal → redirect → SSRF → stack/echo → slow → unauth theft → enum → settings → raw TCP (skip HTTPS) → **login / BOLA / mass-assign / admin / alg:none / forge**
 
@@ -94,6 +151,7 @@ With `--drama`, each phase waits for **Enter**.
 
 ---
 
-## 6. Talk takeaway
+## 7. Talk takeaway
 
-Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA, mass-assign, or forged admin. **Edge ≠ API authorization.**
+Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA, mass-assign, or forged admin. **Edge ≠ API authorization.**  
+When the console shows `(misconfig)` for CORS / body / stack on this Worker URL, blame the **demo app and `BODY_LIMIT` in wrangler** — not Cloudflare and not Express’s real defaults.

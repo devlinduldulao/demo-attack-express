@@ -27,5 +27,7 @@ workers_dev = true
 # Override in the dashboard or: wrangler secret put JWT_SECRET
 [vars]
 JWT_SECRET = "supersecret123"
+# INTENTIONAL MISCONFIG (not a Cloudflare default; not Express json() 100kb).
+# Attack script labels large-body acceptance as kind=misconfig.
 BODY_LIMIT = "50mb"
 NODE_ENV = "production"

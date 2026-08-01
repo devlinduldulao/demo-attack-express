@@ -23,7 +23,8 @@ node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 **`alg:none`:** rejected (401) — jsonwebtoken v9 pins HS256 for string secrets  
 
 Raw log (local, gitignored): `ATTACK-RUN-VERCEL-LATEST.log`  
-Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md)
+Re-captured after **Whose fault?** report landed in `attack/attack.mjs` — search the log for `Whose fault?` / `Misconfig detail` (same three misconfigs as CF).  
+Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · talk script: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs)
 
 ---
 
@@ -78,7 +79,48 @@ This is the **full chain** on a public free-tier host.
 
 ---
 
-## 4. Edge / platform (this run)
+## 4. Misconfig (3) — whose fault on this Vercel deploy?
+
+Same three findings as Cloudflare (identical `app.js`). **Not** Vercel inventing open CORS or 50mb bodies.
+
+| Finding | Severity | Terminal kind | Not whose fault | Is whose fault | Shipped how |
+| --- | --- | --- | --- | --- | --- |
+| CORS misconfig allows any browser origin | HIGH | `misconfig` | Vercel edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
+| Demo misconfig: custom ~50mb bodies | HIGH | `misconfig` | Vercel edge, Express `json()` 100kb | Demo app + env | `BODY_LIMIT` default/`vercel env` + `jsonBody` |
+| Custom error handler leaks stack | MEDIUM | `misconfig` | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
+
+**Attack phases** (identical to CF): CORS probe → oversized login body → `/api/boom` stack.  
+JSON proof: `--json` then grep `"kind": "misconfig"` — three titles, same as Cloudflare.
+
+### Terminal excerpt (committed proof — from live Vercel run)
+
+Full wire log is gitignored (`ATTACK-RUN-VERCEL-LATEST.log`). Engagement report after the run (same misconfig story as CF):
+
+```text
+  By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
+
+  Whose fault? (read the kind tag on every finding):
+    (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
+                     Not Express defaults. Not Cloudflare/Vercel inventing them.
+    (framework-gap) 4 — Express does not ship the control ...
+    (app-code)     16 — vulnerable routes you wrote ...
+
+  Misconfig detail (cloud hosts still show these — same app.js):
+  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
+  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
+  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
+
+  DEMO RESULT: API PWNED — 10 critical findings · 70 requests · 10.2s
+```
+
+Vercel may add **HSTS** at the edge. That does **not** clear the three misconfigs.  
+(+1 critical vs CF is self-SSRF secret — **app-code**, not misconfig.)
+
+See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty) · sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · talk: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs).
+
+---
+
+## 5. Edge / platform (this run)
 
 | Probe | Vercel |
 | --- | --- |
@@ -88,7 +130,7 @@ This is the **full chain** on a public free-tier host.
 
 ---
 
-## 5. Compare to Cloudflare (same attacker, same day)
+## 6. Compare to Cloudflare (same attacker, same day)
 
 | | Cloudflare | Vercel |
 | --- | --- | --- |
@@ -99,6 +141,7 @@ This is the **full chain** on a public free-tier host.
 
 ---
 
-## 6. Talk takeaway
+## 7. Talk takeaway
 
-Same incomplete Express + JWT app. Vercel adds the self-SSRF secret path; both still dump PII and accept a forged admin JWT. **Hosting platform ≠ API security.**
+Same incomplete Express + JWT app. Vercel adds the self-SSRF secret path; both still dump PII and accept a forged admin JWT. **Hosting platform ≠ API security.**  
+`(misconfig)` on this Vercel URL is the **demo’s CORS / BODY_LIMIT / stack handler** — not “serverless defaults are open CORS” and not Express’s 100kb body default.

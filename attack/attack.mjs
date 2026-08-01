@@ -1564,9 +1564,35 @@ ${c.bold}${c.red}╔════════════════════
   );
   console.log(
     `    ${c.dim}kind legend: framework-gap = Express has no control;` +
-      ` misconfig = demo weakened a safer default;` +
+      ` misconfig = demo app/env weakened a safer default (not the cloud platform);` +
       ` app-code = vulnerable route / app logic you wrote.${c.reset}`
   );
+
+  const misconfigs = stolen.findings.filter((f) => f.kind === "misconfig");
+  const gaps = stolen.findings.filter((f) => f.kind === "framework-gap");
+  const appHoles = stolen.findings.filter((f) => (f.kind || "app-code") === "app-code");
+
+  console.log(`\n  ${c.bold}Whose fault? (read the kind tag on every finding):${c.reset}`);
+  console.log(
+    `    ${c.yellow}(misconfig)     ${c.reset}${misconfigs.length} — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).` +
+      ` Not Express defaults. Not Cloudflare/Vercel inventing them.`
+  );
+  console.log(
+    `    ${c.blue}(framework-gap) ${c.reset}${gaps.length} — Express does not ship the control (headers, rate limit, timeout, …).`
+  );
+  console.log(
+    `    ${c.red}(app-code)      ${c.reset}${appHoles.length} — vulnerable routes you wrote (BOLA, proxy, traversal, debug, …).`
+  );
+  console.log(
+    `    ${c.yellow}◇ PLATFORM     ${c.reset}${stolen.platformNotes.length} — edge/runtime blocked a probe; does not mean the API is authorized.`
+  );
+  if (misconfigs.length) {
+    console.log(`\n  ${c.bold}Misconfig detail (cloud hosts still show these — same app.js):${c.reset}`);
+    for (const f of misconfigs) {
+      finding(f.severity, f.title, f);
+      if (f.detail) info(f.detail);
+    }
+  }
 
   if (stolen.platformNotes.length) {
     console.log(`\n  ${c.bold}${c.yellow}Platform notes (edge blocked probe — app may still be open):${c.reset}`);
@@ -1576,7 +1602,7 @@ ${c.bold}${c.red}╔════════════════════
     }
   }
 
-  console.log(`\n  ${c.bold}App findings:${c.reset}`);
+  console.log(`\n  ${c.bold}All findings:${c.reset}`);
   for (const f of stolen.findings) {
     finding(f.severity, f.title, f);
     if (f.detail) info(f.detail);
@@ -1593,10 +1619,10 @@ ${c.bold}${c.red}╔════════════════════
     (Where Express *does* have a safer default when you use it — e.g. express.json
      limit '100kb'→413; finalhandler omits stacks when NODE_ENV=production —
      this demo sometimes replaces them on purpose. Those findings are misconfig,
-     not framework-gap. Sources: expressjs.com body-parser docs, security guide,
-     express/lib/application.js, pillarjs/finalhandler.)
+     not framework-gap, and not the cloud platform. Sources: expressjs.com body-parser
+     docs, security guide, express/lib/application.js, pillarjs/finalhandler.)
 
-  ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md for the edge-vs-app framing.
+  ${c.dim}See CLOUDFLARE-VS-APP-SECURITY.md (section "Whose fault?") for edge-vs-app-vs-misconfig.
   Only attack systems you own. Educational VaultPay demo only.
   Tear down or gate public deploys after the talk (TEARDOWN.md).${c.reset}
 `);

@@ -61,18 +61,20 @@ you almost nothing” framing if you use the honest labels.
 | Real Express gaps | No secure headers, `x-powered-by` ON, no rate limit, no request timeout, no authz primitive, no response schema. |
 | Edge WAF / CF 1042 | May block *some* probes (`◇ PLATFORM`); does **not** fix API authz. |
 | In-memory DB | Resets on restart / cold start. Fine for a talk. |
+| Misconfig on CF/Vercel | CORS `*`, `BODY_LIMIT=50mb`, stack leak are **this app/env** — same on both clouds. Not platform defaults. See [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty). |
 
 ---
 
 ## Finding kinds (on-screen honesty)
 
-Every recorded finding carries a `kind`:
+Every recorded finding carries a `kind`. The engagement report also prints a **Whose fault?** block so cloud runs do not get blamed on Express or the host for the three misconfigs.
 
-| kind | Meaning |
-| --- | --- |
-| `framework-gap` | Express does not provide this control by default |
-| `misconfig` | Demo weakened / replaced a safer Express default |
-| `app-code` | Vulnerable route / app logic (not a framework default) |
+| kind | Meaning | Cloud deploy note |
+| --- | --- | --- |
+| `framework-gap` | Express does not provide this control by default | Same on CF and Vercel |
+| `misconfig` | Demo app/env weakened a safer Express default (CORS, body, stack) | Shipped in `app.js` / `BODY_LIMIT` — **not** CF/Vercel inventing them |
+| `app-code` | Vulnerable route / app logic (not a framework default) | Same hole on every host |
+| `◇ PLATFORM` | Edge/runtime blocked a **probe** | Only class that differs by cloud (e.g. CF 1042) |
 
 OWASP API Top 10 tags (`API1` BOLA, `API2` broken auth, `API3` BOPLA, `API4`
 unrestricted resource, `API5` BFLA, `API7` SSRF, `API8` misconfig/security)

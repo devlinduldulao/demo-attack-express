@@ -15,6 +15,9 @@ Two scripts live here:
 **Not** the thesis: “Express is insecure by default on body limits / CORS / stacks.”
 Those three are **misconfig** in *this* demo (see [Honest labels](#honest-labels)).
 
+**Also not the thesis:** “Cloudflare / Vercel defaults are open CORS and 50 mb bodies.”
+Those ship in **our** `app.js` / `BODY_LIMIT` on every host (see [Terminal: whose fault](#terminal-whose-fault-on-cloud-runs)).
+
 ---
 
 ## Projector order
@@ -25,7 +28,7 @@ Those three are **misconfig** in *this* demo (see [Honest labels](#honest-labels
 | 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL --drama --reset` |
 | 3 | Edge vs app (short bullets, not a markdown table dump) | key lines from [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) |
 | 4 | Same code, two clouds | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) |
-| 5 | Close | 4 lines on slide or spoken |
+| 5 | Close | 5 lines on slide or spoken (include misconfig honesty) |
 
 Do **not** paste full markdown tables on the projector. Terminal = visual; slides = framing.
 
@@ -38,7 +41,7 @@ On-screen findings are tagged:
 | kind | Meaning | Audience line |
 | --- | --- | --- |
 | `framework-gap` | Express does not provide this control | “Nothing in the box” |
-| `misconfig` | Demo replaced a *safer* Express default | “We weakened what Express already gave” |
+| `misconfig` | **Our** demo app/env replaced a *safer* Express default | “We weakened it — not Express, not the cloud” |
 | `app-code` | Vulnerable route / app logic you wrote | “Tutorial shipped this” |
 | `◇ PLATFORM` | Edge/runtime blocked the probe | “CDN ≠ authz” |
 
@@ -52,15 +55,57 @@ On-screen findings are tagged:
 
 **One line for the room:** *Login proves who you are. IDOR/BOLA is failing what you’re allowed to touch.*
 
-Three findings that used to overstate Express defaults (fixed in the script):
+Three findings that used to overstate Express defaults (fixed in the script) — **same lines on CF, Vercel, and localhost**:
 
-| Finding | Honest story |
-| --- | --- |
-| Oversized body ~1.5 MiB | **misconfig** — `express.json()` defaults to **100 kb**. Demo uses custom ~50 mb parser. |
-| Stack traces | **misconfig** — Express `finalhandler` redacts stacks when `NODE_ENV=production`. Custom handler leaks on purpose. |
-| CORS `*` | **misconfig** — bare Express has **no** CORS; this app added `cors` + `origin: "*"`. |
+| Finding | Honest story | Not whose fault |
+| --- | --- | --- |
+| Oversized body ~1.5 MiB | **misconfig** — `express.json()` defaults to **100 kb**. Demo uses custom ~50 mb parser (`BODY_LIMIT`). | Express default · CF/Vercel “platform body policy” |
+| Stack traces | **misconfig** — Express `finalhandler` redacts stacks when `NODE_ENV=production`. Custom handler leaks on purpose. | Express prod default · the host |
+| CORS `*` | **misconfig** — bare Express has **no** CORS; this app added `cors` + `origin: "*"`. | Bare Express · Cloudflare / Vercel inventing open CORS |
 
 **Real Express gaps that still land hard:** no secure headers, `x-powered-by` ON, no rate limit, no request timeout, no authz primitive, no response schema / field allowlist, no SSRF helper.
+
+---
+
+## Terminal: whose fault on cloud runs
+
+After the attack finishes, the script prints a **Whose fault?** block (and a **Misconfig detail** list). Use it on stage — do not invent blame.
+
+**What you should see (counts from the 2026-08-01 cloud engagements; re-run if the app changes):**
+
+```text
+By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
+
+Whose fault? (read the kind tag on every finding):
+  (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
+                   Not Express defaults. Not Cloudflare/Vercel inventing them.
+  (framework-gap) 4 — Express does not ship the control (headers, rate limit, timeout, …).
+  (app-code)     16 — vulnerable routes you wrote (BOLA, proxy, traversal, debug, …).
+  ◇ PLATFORM      N — edge/runtime blocked a probe; does not mean the API is authorized.
+
+Misconfig detail (cloud hosts still show these — same app.js):
+  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
+  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
+  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
+```
+
+| If someone says… | You point at… | You say… |
+| --- | --- | --- |
+| “Cloudflare is insecure” | `(misconfig)` ×3 **same on Vercel** | “Those three are our deploy. Edge is `◇ PLATFORM` only.” |
+| “Express allows 50 mb / open CORS” | misconfig detail lines | “Safer defaults exist; we replaced them — tag is `misconfig`.” |
+| “The CDN protected us” | `◇ PLATFORM` vs critical `app-code` | “Filtered a probe. Cards and forge still landed.” |
+
+**Capture fresh logs** (files are gitignored — regenerate before a talk if you want handouts):
+
+```powershell
+$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json *> ATTACK-RUN-CLOUDFLARE-LATEST.log
+node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json *> ATTACK-RUN-VERCEL-LATEST.log
+```
+
+Studies that already document the three misconfigs on each cloud:  
+[`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) ·  
+full matrix: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).
 
 ---
 
@@ -121,18 +166,20 @@ node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama -
 | Mass-assign admin | “We PUT `role: admin`. JWT never stopped it.” |
 | Forged admin | “We stopped needing their password.” |
 | `◇ PLATFORM` (e.g. CF 1042) | “That’s the edge — not the app learning authz.” |
-| `(misconfig)` body / stack / CORS | “We weakened or bolted this on — not Express inventing it.” |
+| `(misconfig)` body / stack / CORS | “We weakened this in the demo app — not Express, not Cloudflare.” |
+| Report **Whose fault?** | “Three misconfigs are us; gaps are Express empty box; pwn is app-code.” |
 
 ## 3:30–4:30 — Edge one-liner
 
-> “Cloudflare blocked Worker self-fetch (1042). It did **not** stop the card dump or the forged admin. Edge filters are not API authorization.”
+> “Cloudflare blocked Worker self-fetch (1042). It did **not** stop the card dump or the forged admin. Edge filters are not API authorization. Open CORS and 50 mb bodies on this Worker URL are **our** `app.js` / `BODY_LIMIT` — same tags if we deploy to Vercel.”
 
 ## 4:30–5:00 — Close
 
 1. Authn ≠ authz.  
 2. JWT is one control, not a security model.  
 3. Frameworks give you almost nothing — ship defaults + ownership checks.  
-4. Only attack systems you own. Tear down when done.
+4. `(misconfig)` on a cloud URL is still **our** app/env — not the host’s security product.  
+5. Only attack systems you own. Tear down when done.
 
 Optional 30s product note (do **not** pitch during the run): secure-default frameworks exist; ownership rules are still yours.
 
@@ -240,13 +287,14 @@ Whiteboard or one slide:
 
 | Claim that loses the room | Truth |
 | --- | --- |
-| “Express accepts 1.5 MiB bodies” | Default is **100 kb**. We used a custom 50 mb parser. |
+| “Express accepts 1.5 MiB bodies” | Default is **100 kb**. We used a custom 50 mb parser (`BODY_LIMIT` on CF/Vercel too). |
 | “Express leaks stacks in prod” | **finalhandler** redacts when `NODE_ENV=production`. |
 | “Express CORS allows *” | Express ships **no** CORS. We added the package. |
+| “Cloudflare/Vercel set open CORS / 50 mb” | **No** — same `(misconfig)` ×3 on both hosts from **our** app. Platform only changes `◇ PLATFORM` probes. |
 
 Then:
 
-> “Express’s defaults are fine where they exist. The problem is **how few of them exist.**”
+> “Express’s defaults are fine where they exist. The problem is **how few of them exist.** And when we *do* weaken a safer default, the terminal tags it `misconfig` so we don’t smear the framework or the cloud.”
 
 List (framework-gap, undisputable):
 
@@ -258,6 +306,8 @@ List (framework-gap, undisputable):
 - No SSRF / safe-redirect helper  
 
 > “JWT thesis stands on its own: unauth dump, IDOR, BOLA, mass-assign, BFLA, forged token. Nobody argues with that chain.”
+
+**If the report is still on screen:** scroll to **Whose fault?** and read the three misconfig titles out loud once (see [Terminal: whose fault](#terminal-whose-fault-on-cloud-runs)).
 
 ---
 
@@ -274,6 +324,17 @@ node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --skip-fl
 ```
 
 **Latest engagement (2026-08-01):** CF **9** critical / 4.3s · Vercel **10** critical / 10.1s · both forged admin. (+1 on Vercel = self-SSRF of debug secret.)
+
+**Whose fault on both URLs (say once while the report’s kind counts are up):**
+
+| Terminal tag | Same on CF + Vercel? | Line |
+| --- | --- | --- |
+| `(misconfig)` ×3 | **Yes** — CORS `*`, 50mb body, stack leak | “That’s our `app.js` / `BODY_LIMIT` — not Workers, not Vercel, not Express inventing open CORS.” |
+| `(framework-gap)` | Yes | “Express never shipped rate limit / Helmet.” |
+| `(app-code)` | Yes | “Tutorial routes — ownership is on us.” |
+| `◇ PLATFORM` | **Differs** (e.g. CF 1042) | “Edge filtered a probe. Authz still dead.” |
+
+Full matrix: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty). The attack report now prints a **Whose fault?** block before the full finding list.
 
 **Story structure (not a 17-row table on screen):**
 
@@ -292,12 +353,13 @@ Point people at [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) and the two A
 
 ## 35:00–40:00 — Close
 
-**Four lines (slide or spoken):**
+**Five lines (slide or spoken):**
 
 1. **Authn ≠ authz.** A valid JWT is not an access-control policy.  
 2. **JWT is one control.** Secret leak + HS256 = forged identity.  
 3. **Nothing is not a security model.** Frameworks that ship almost no defaults leave teams shipping open APIs.  
-4. **Edge ≠ API security.** Same code, two clouds, both pwned where it counts.
+4. **Edge ≠ API security.** Same code, two clouds, both pwned where it counts.  
+5. **`(misconfig)` is us.** Open CORS, 50 mb bodies, stack leak = demo app/env — not Express defaults, not CF/Vercel inventing them. Read the terminal kind tags.
 
 **Last 30 seconds only (optional product / framework note):**
 
@@ -319,8 +381,9 @@ Do **not** open a 17-row feature matrix. Link README later.
 | “What is BOLA / IDOR?” | Same class: object id trusted without ownership. IDOR = classic name; BOLA = OWASP API1. Alice’s JWT reading Bob’s orders. |
 | “Express 5 fixed security?” | No — v5 is API cleanup, not a security model. |
 | “Would helmet / rate-limit fix it?” | Partly transport; not BOLA/ownership. |
-| “Cloudflare failed?” | No — edge did its job on two probes; app authz still missing. |
-| “Why 50 mb body?” | Demo honesty: Workers + attack need it; labelled misconfig. |
+| “Cloudflare failed?” | No — edge did its job on some probes (`◇ PLATFORM`); app authz still missing. CORS/body/stack are `(misconfig)` from **our** app, not CF. |
+| “Is open CORS a Vercel default?” | No. We added `cors({ origin: "*" })`. Same finding on CF. Tag: `misconfig`. |
+| “Why 50 mb body?” | Demo honesty: Workers + attack need it; Express default is 100 kb; labelled `misconfig` in the report’s Whose fault? block. |
 
 ---
 

@@ -107,19 +107,34 @@ Full runbook: [`../HOW-TO-ATTACK.md`](../HOW-TO-ATTACK.md).
 | --- | --- |
 | Path traversal / IDOR / JWT dump | Works |
 | Login flood | Usually works; use `--skip-flood` if flaky |
-| Large body (~1.5 MiB) | Usually works |
+| Large body (~1.5 MiB) | Usually works (**demo misconfig** — see below) |
 | Raw TCP | Skipped (HTTPS) |
-| SSRF self-fetch | May return Cloudflare `1042` |
+| SSRF self-fetch | May return Cloudflare `1042` (`◇ PLATFORM` — not app authz) |
 | XSS probe | May return Cloudflare WAF `403` |
 | In-memory DB | Resets on cold start |
+
+## Intentional misconfig shipped to Cloudflare (not CF’s fault)
+
+This Worker deploys the **same** vulnerable `app.js` as Vercel/Node. Three findings the attack script labels **`misconfig`** (not Express defaults, not Cloudflare inventing them):
+
+| Knob | What we ship | Safer Express story | Attack tag |
+| --- | --- | --- | --- |
+| CORS | `cors({ origin: "*" })` in `app.js` | Bare Express has **no** CORS middleware | `(misconfig)` HIGH |
+| Body size | `BODY_LIMIT = "50mb"` in [`wrangler.toml`](wrangler.toml) `[vars]` + custom `jsonBody` | `express.json()` default **100kb** → **413** | `(misconfig)` HIGH |
+| Stack leak | `/api/boom` + error middleware return `stack` | `finalhandler` redacts stacks when `NODE_ENV=production` | `(misconfig)` MEDIUM |
+
+**Talk honesty:** when the cloud attack log shows those three lines, blame **this repo’s app/env**, not “Workers default security is open CORS.”  
+Platform-only effects (e.g. **1042**) use `◇ PLATFORM` in the terminal.
+
+Full matrix: [`../CLOUDFLARE-VS-APP-SECURITY.md`](../CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).
 
 ## Config
 
 | File | Role |
 | --- | --- |
-| [`wrangler.toml`](wrangler.toml) | Worker name, flags, vars, iconv alias |
+| [`wrangler.toml`](wrangler.toml) | Worker name, flags, vars (`BODY_LIMIT`, weak `JWT_SECRET`, …), iconv alias |
 | [`worker.mjs`](worker.mjs) | CF entry for Express 5 |
-| [`app.js`](app.js) | Shared Express 5 app |
+| [`app.js`](app.js) | Shared Express 5 app (CORS `*`, body parser, vulnerable routes) |
 | [`server.js`](server.js) | Node / Azure listen entry |
 | [`vfs.js`](vfs.js) | Virtual FS for path traversal |
 | [`stubs/iconv-lite.js`](stubs/iconv-lite.js) | UTF-8 stub for Workers bundle |

@@ -95,9 +95,22 @@ vercel --prod --yes
 
 | Variable | Default in code | Purpose |
 | --- | --- | --- |
-| `JWT_SECRET` | `supersecret123` | Weak JWT secret |
-| `BODY_LIMIT` | `50mb` | Huge JSON limit |
+| `JWT_SECRET` | `supersecret123` | Weak JWT secret (**app-code** risk surface) |
+| `BODY_LIMIT` | `50mb` | Huge JSON limit — **intentional misconfig** (Express `json()` default is **100kb**) |
 | `VERCEL` | set by platform | Runtime label |
+
+## Intentional misconfig shipped to Vercel (not Vercel’s fault)
+
+Same three **`misconfig`** findings as Cloudflare (shared `app.js`). Hosting on Vercel does **not** create them:
+
+| Knob | What we ship | Safer Express story | Attack tag |
+| --- | --- | --- | --- |
+| CORS | `cors({ origin: "*" })` in `app.js` | Bare Express has **no** CORS | `(misconfig)` HIGH |
+| Body size | `BODY_LIMIT` default/`env` + custom `jsonBody` | `express.json()` **100kb** → **413** | `(misconfig)` HIGH |
+| Stack leak | `/api/boom` + error middleware return `stack` | Prod `finalhandler` redacts stacks | `(misconfig)` MEDIUM |
+
+Edge may still add **HSTS**; the attack script treats missing app Helmet headers as **framework-gap**, not “Vercel failed.”  
+Full matrix: [`../CLOUDFLARE-VS-APP-SECURITY.md`](../CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).
 
 ---
 

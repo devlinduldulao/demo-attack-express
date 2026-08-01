@@ -161,7 +161,10 @@ npm run demo
 `--reset` re-seeds the in-memory DB so a warm isolate does not keep “Hijacked Bob” from a prior run.
 
 Findings are tagged `framework-gap` | `misconfig` | `app-code` plus OWASP API ids.
-See [`TALK.md`](TALK.md) for how to narrate them.
+The engagement report prints a **Whose fault?** block: `misconfig` = demo app/env (CORS `*`, `BODY_LIMIT`, stack leak) — **not** Express defaults and **not** Cloudflare/Vercel inventing them. Same three misconfigs appear on both cloud URLs; only `◇ PLATFORM` differs by host.
+See [`TALK.md`](TALK.md) for narration and [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty) for the cloud blame matrix.
+
+Raw terminal captures (`ATTACK-RUN-*-LATEST.log`) are **gitignored** local artifacts. Re-run with `--json` after deploy if you need a fresh log with current labels.
 
 **Examples** (from repo root):
 

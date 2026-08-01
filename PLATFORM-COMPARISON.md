@@ -56,6 +56,41 @@
 
 ---
 
+## Same misconfigs on both clouds (not the platform’s fault)
+
+`By kind` is **identical**: `framework-gap: 4 · misconfig: 3 · app-code: 16`.  
+Cloud hosting does not create or remove those three misconfigs — they are in **shared app source + deploy vars**.
+
+| Terminal finding | kind | CF | Vercel | Whose fault? |
+| --- | --- | --- | --- | --- |
+| CORS misconfig allows any browser origin | **misconfig** | HIGH | HIGH | Demo `cors({ origin: "*" })` in `app.js` — bare Express has **no** CORS |
+| Demo misconfig: custom ~50mb bodies | **misconfig** | HIGH | HIGH | Demo `BODY_LIMIT=50mb` (`wrangler.toml` / Vercel env / `app.js`) — Express `json()` default **100kb** → 413 |
+| Misconfig: custom error handler leaks stack | **misconfig** | MEDIUM | MEDIUM | Demo `/api/boom` + error middleware — not Express prod `finalhandler` |
+| No rate limiting / no secure headers | **framework-gap** | same | same | Express does not ship these |
+| BOLA / forge / PII dump / … | **app-code** | same | same | Route logic |
+| Self-SSRF of debug secret | **app-code** hole; outcome differs | **1042** `◇ PLATFORM` | **CRITICAL** | Edge policy ≠ authz; open proxy is still app-code |
+
+**Say on stage:**  
+> “Open CORS and 50mb bodies show up on Cloudflare **and** Vercel with the same `(misconfig)` tag. That is the demo deploy — not ‘Workers are insecure by default’ and not ‘Express accepts 50mb out of the box.’”
+
+**Terminal on both URLs** (after the run, same report block):
+
+```text
+Whose fault? ...
+  (misconfig)     3 — ... Not Express defaults. Not Cloudflare/Vercel inventing them.
+Misconfig detail (cloud hosts still show these — same app.js):
+  [HIGH] (misconfig) CORS ...
+  [HIGH] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
+  [MEDIUM] (misconfig) ... stack ...
+```
+
+Attack phases: CORS (`GET /api/health` + evil Origin) → oversized `POST /api/auth/login` → stack via `/api/boom`.  
+Full blame matrix: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).  
+Committed excerpts: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md).  
+Speaker script: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs).
+
+---
+
 ## Deploy + attack
 
 ```powershell
