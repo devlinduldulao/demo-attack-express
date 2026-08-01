@@ -136,6 +136,7 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | Flag | Meaning |
 | --- | --- |
 | (none) | Full run: wire logs on, flood on, slow probe on |
+| `--drama` | **Wait for Enter** between phases (stage pacing) |
 | `--projector` | No dim text; less wire noise (large rooms) |
 | `--reset` | `POST /api/demo/reset` before recon (warm isolate hygiene) |
 | `--gate=TOKEN` | Send `X-VaultPay-Demo` header (or set `DEMO_GATE_TOKEN` env) |
@@ -146,24 +147,18 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 | `--skip-slow` | Skip `/api/slow?ms=3000` |
 | `--internal=URL` | Base URL of the SSRF stand-in internal service (or `INTERNAL_SERVICE_URL`). `npm run demo` sets this for you. |
 
-**Continuous terminal demo** (no pauses — phases run straight through):
+**Talk / terminal demo:**
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset
-# shorter:
+# Stage: Enter between phases
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+# Fast continuous (no Enter)
 node attack/attack.mjs https://vaultpay-api.vercel.app --reset --skip-flood
-# local one-shot:
+# Local one-shot
 npm run demo
 ```
 
-
-`--reset` (on by default in `npm run demo`) re-seeds DB and clears prototype pollution keys so a rehearsal does not spoil the next run.
-
-One-command local:
-
-```powershell
-npm run demo              # boots vulnerable API + full attack
-```
+`--reset` re-seeds the in-memory DB so a warm isolate does not keep “Hijacked Bob” from a prior run.
 
 Findings are tagged `framework-gap` | `misconfig` | `junior-code` plus OWASP API ids.
 See [`TALK.md`](TALK.md) for how to narrate them.
@@ -171,11 +166,11 @@ See [`TALK.md`](TALK.md) for how to narrate them.
 **Examples** (from repo root):
 
 ```powershell
-node attack/attack.mjs http://localhost:4000
-node attack/attack.mjs http://127.0.0.1:8787
+node attack/attack.mjs http://localhost:4000 --drama --reset
+node attack/attack.mjs http://127.0.0.1:8787 --drama
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # only if TLS intercept
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --gate=talk-day-secret
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset --gate=talk-day-secret
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 
@@ -415,7 +410,6 @@ Numbers shift by one when `--reset` is on (it adds phase 01).
 | 12 | User dump / IDOR / debug / search | No |
 | 13 | Login error enumeration | No |
 | 14 | Unauth settings write | No |
-| 15 | **Prototype pollution → forged transaction** | Yes (auto, for the proof) |
 | 16 | Raw TCP (HTTP only) | No |
 | 17 | Login, BOLA, mass assign, admin, `alg:none`, forge JWT | Yes (auto) |
 

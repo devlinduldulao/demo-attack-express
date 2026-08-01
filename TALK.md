@@ -22,7 +22,7 @@ Those three are **misconfig** in *this* demo (see [Honest labels](#honest-labels
 | Screen | What | File / command |
 | --- | --- | --- |
 | 1 | Frame + health | browser / `GET /api/health` |
-| 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL` |
+| 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL --drama --reset` |
 | 3 | Edge vs app (short bullets, not a markdown table dump) | key lines from [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) |
 | 4 | Same code, two clouds | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) |
 | 5 | Close | 4 lines on slide or spoken |
@@ -97,10 +97,11 @@ Optional: show a login that returns a Bearer token — “Login works. Feels fin
 ## 0:45–3:30 — Attack
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
 # if gated: add --gate=talk-day-secret
 ```
 
+`--drama` waits for **Enter** between phases so you control the beat.
 
 | When you see… | Say… |
 | --- | --- |
@@ -164,7 +165,7 @@ If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 ## 5:00–20:00 — Live attack (primary visual)
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --projector --gate=YOUR_TOKEN
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset --gate=YOUR_TOKEN
 ```
 
 Local run with the SSRF stand-in wired up automatically:
@@ -173,7 +174,9 @@ Local run with the SSRF stand-in wired up automatically:
 npm run demo:full     # boots API + internal service, then attacks
 ```
 
-**Climax order:** settings, prototype pollution, and raw TCP finish *before* BOLA/mass-assign/forged JWT so the last LOOT is the forged admin — not “Skipped raw TCP on HTTPS.” Scroll or narrate over the continuous wire log.
+**How to use Enter:** finish the sentence, then press Enter. If the room is reading, wait.
+
+**Climax order:** settings and raw TCP finish *before* BOLA/mass-assign/forged JWT so the last LOOT is the forged admin — not “Skipped raw TCP on HTTPS.”
 
 ### Phase narration map (OWASP API Top 10)
 
@@ -192,7 +195,6 @@ npm run demo:full     # boots API + internal service, then attacks
 | User dump / IDOR / debug | API1, API3, API8 | “JWT thesis — no password.” |
 | Account enum | API2 | “Different login errors.” |
 | Settings PUT | API3 | “Unauth state change.” |
-| **Prototype pollution** | API3 | “Empty body. The values came from `Object.prototype`.” |
 | BOLA orders | API1 | “Authn without authz.” |
 | Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
 | Admin stats | API5 | “requireAuth ≠ requireRole (BFLA).” |
@@ -315,7 +317,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 ## Hostile / 2-minute backup
 
 1. Health → express 5  
-2. `node attack/attack.mjs URL --reset`
+2. `node attack/attack.mjs URL` without `--drama`
 3. Jump to LOOT users + JWT_SECRET + DEMO RESULT  
 4. One line: Cloudflare ≠ authz; JWT ≠ security model  
 
@@ -330,7 +332,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 | BOLA + forge chain | JWT myth dies on screen |
 | CF vs Vercel same app | Differentiator |
 | kind + OWASP tags | Authority with security-literate audience |
-| Continuous terminal run | Scoreboard builds without pauses |
+| Enter-driven `--drama` | You talk; they read |
 
 ## What not to claim
 

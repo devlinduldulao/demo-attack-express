@@ -8,9 +8,9 @@
 | **Vercel serverless** | `https://vaultpay-api.vercel.app` | `cd server && vercel --prod --yes` |
 | **Node long-running** | `http://localhost:4000` | `cd server && npm start` |
 
-**Engagement date:** 2026-08-01 (post–prototype-pollution + CORS/IMDS attacker; **no** HARDENED mode).  
-**Deploy Version (CF):** `fa70392f-4175-4922-a355-b4e3046bfc4d`  
-**Attacker:** `attack/attack.mjs --reset --json` (no `--internal`)
+**Engagement date:** 2026-08-01 (current attacker: CORS, IMDS-class, no pollution phase, `--drama` optional).  
+**CF Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
+**Attacker:** `attack/attack.mjs --reset --json`
 
 ---
 
@@ -19,19 +19,17 @@
 | | Cloudflare | Vercel |
 | --- | --- | --- |
 | Study | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
-| Result | **4** critical · **71** req · **4.5s** | **11** critical · **74** req · **11.1s** |
-| Findings total | 18 | 24 |
-| By kind | gap 4 · misconfig 3 · junior 11 | gap 4 · misconfig 3 · junior 17 |
+| Result | **9** critical · **71** req · **4.3s** | **10** critical · **70** req · **10.1s** |
+| Findings total | 23 | 23 |
+| By kind | gap 4 · misconfig 3 · junior 16 | gap 4 · misconfig 3 · junior 16 |
 | `"express":"5"` | Yes | Yes |
-| Reset `prototypeKeysCleared` | Yes | Yes |
 | Unauth PII / IDOR / debug secret | CRITICAL | CRITICAL |
 | Path traversal JWT file | CRITICAL | CRITICAL |
 | CORS `*` | HIGH misconfig | HIGH misconfig |
-| Self-SSRF → debug | **1042** platform → external HIGH | **CRITICAL** |
-| IMDS-class URL | 403 + HIGH no allowlist | 502 + HIGH no allowlist |
-| **Prototype pollution empty order** | **Fails / bricks isolate (1101)** until reset | **CRITICAL** LOOT forged order |
-| BOLA / mass-assign / BFLA / forge | **Skipped** (login dead after pollution) | **CRITICAL** all + forged admin **YES** |
-| `alg:none` | n/a (authz phase skipped) | Rejected 401 (library) |
+| Self-SSRF → debug | **1042** → external HIGH | **CRITICAL** |
+| IMDS-class URL | no IMDS + HIGH no allowlist | no IMDS + HIGH no allowlist |
+| BOLA / mass-assign / BFLA / forge | **YES** full climax | **YES** full climax |
+| `alg:none` | rejected 401 | rejected 401 |
 
 ---
 
@@ -43,43 +41,29 @@
      ┌─────┴─────┐
      ▼           ▼
  Cloudflare    Vercel
- edge/WAF      edge/HSTS
+ edge 1042     self-SSRF works
      │           │
      ▼           ▼
- Unauth pwn    Full chain pwn
- + pollution   (pollution + forge)
-   bricks
-   isolate
+ Still pwned   Still pwned
+ (9 crit)      (10 crit)
+ both forged admin
 ```
 
-1. **Hosting ≠ API security** — both still dump PII and leak the JWT secret without a password.  
-2. **Vercel** is the better **live climax** (pollution LOOT + forged admin).  
-3. **Cloudflare** still valuable: edge 1042, IMDS refuse, and “pollution can take the Worker offline until reset.”  
-4. **Internal pivot / redirect hop** need `--internal=URL` against a **local** API (or any host that can reach your stand-in). Not these two public URLs.
+1. **Hosting ≠ API security** — both dump PII and accept forged admin JWT.  
+2. **CF edge** changes which *probes* fail (self-fetch), not whether *authz* works.  
+3. **+1 critical on Vercel** is self-SSRF of the debug secret — same app hole, different edge.  
+4. Stage: `--drama --reset` on either URL; prefer either for climax (both forge).
 
 ---
 
-## Deploy both (local CLI)
+## Deploy + attack
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 cd server
 npx wrangler deploy
 npx vercel --prod --yes
+cd ..
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 ```
-
-```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
-```
-
----
-
-## Diff that costs criticals
-
-| Probe | Cloudflare | Vercel |
-| --- | --- | --- |
-| Self open proxy | 1042 | **CRITICAL** secret |
-| Prototype pollution | **1101 brick** → skip forge | **CRITICAL** + rest of chain |
-
-Everything else in the unauth JWT thesis is **the same class of incomplete setup** on both.

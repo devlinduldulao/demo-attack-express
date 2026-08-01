@@ -3,22 +3,24 @@
 **Target:** `https://vaultpay-api.devlinduldulao.workers.dev`  
 **Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)  
 **Deployed:** 2026-08-01 — local `wrangler deploy`  
-**Worker Version ID:** `fa70392f-4175-4922-a355-b4e3046bfc4d`  
-**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}` (no hardened mode)  
-**Reset proof:** `POST /api/demo/reset` → `prototypeKeysCleared` present (empty when clean)  
-**Attack:** 2026-08-01T10:09Z · `node attack/attack.mjs URL --reset --json`  
-(no `--internal`)
+**Worker Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
+**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
+**Attack:** 2026-08-01 · `node attack/attack.mjs URL --reset --json`  
+(no `--internal`; no prototype-pollution phase in current attacker)
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
 node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
+# stage pacing:
+node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
 ```
 
-**Result:** `DEMO RESULT: API PWNED — 4 critical findings · 71 requests · 4.5s`  
-**By severity:** `CRITICAL: 4` · `HIGH: 9` · `MEDIUM: 4` · `INFO: 1` (**18** findings)  
-**By kind:** `junior-code: 11` · `framework-gap: 4` · `misconfig: 3`  
-**OWASP API:** API1, API2, API3, API4, API7, API8  
-**Loot:** 4 users · JWT secret **YES** · privilege esc **no** · forged admin **no**
+**Result:** `DEMO RESULT: API PWNED — 9 critical findings · 71 requests · 4.3s`  
+**By severity:** `CRITICAL: 9` · `HIGH: 9` · `MEDIUM: 4` · `INFO: 1` (**23** findings)  
+**By kind:** `junior-code: 16` · `framework-gap: 4` · `misconfig: 3`  
+**OWASP API:** API1, API2, API3, API4, API5, API7, API8  
+**Loot:** 4 users · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
+**`alg:none`:** rejected (401) — jsonwebtoken v9 pins HS256 for string secrets  
 
 Raw log (local, gitignored): `ATTACK-RUN-CLOUDFLARE-LATEST.log`  
 Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
@@ -29,12 +31,16 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 
 | Question | Answer |
 | --- | --- |
-| Current code on CF? | **Yes** — reset returns `prototypeKeysCleared`; health has no `hardened` |
-| Unauth chain? | **Yes** — path traversal, user dump, IDOR, debug secret |
-| Full JWT climax? | **No this run** — see Workers + prototype pollution note below |
-| Edge vs app? | Self-SSRF **1042**; IMDS **403** (platform); open proxy still **HIGH** external |
+| Current code on CF? | **Yes** (version above) |
+| Unauth PII / IDOR / secret / traversal? | **CRITICAL** |
+| BOLA / mass-assign / BFLA / forge? | **CRITICAL** — full climax |
+| Self-SSRF open proxy? | **Blocked** CF **1042** → external open proxy still **HIGH** |
+| IMDS-class URL? | No real IMDS · **HIGH** no egress allowlist + `◇ PLATFORM` |
+| CORS `*`? | **HIGH** misconfig |
 
-### CRITICAL (4) this run
+---
+
+## 2. CRITICAL (9)
 
 | Finding | kind | OWASP |
 | --- | --- | --- |
@@ -42,68 +48,52 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 | Unauthenticated user dump | junior-code | API1 |
 | IDOR on `/api/users/:id` without auth | junior-code | API1 |
 | Debug endpoint leaks JWT signing secret | junior-code | API8 |
-
-Secret was recovered, but **login + forge chain did not complete** (next section).
-
----
-
-## 2. Workers landmine: prototype pollution → isolate 1101
-
-After `PUT /api/settings` with `__proto__` / `merchant`+`amount`:
-
-| Step | Result on CF Workers |
-| --- | --- |
-| Pollution request | **500** / Worker **error code: 1101** |
-| Subsequent login / orders | **500 / 1101** until cleanup |
-| `POST /api/demo/reset` | Clears `merchant`/`amount` off `Object.prototype` → isolate recovers |
-
-So the **default** pollution phase (safe keys on Node/Vercel) **bricks the current Worker isolate** until reset. The attack script then cannot log in and **skips BOLA / mass-assign / forge** even though the JWT secret was already stolen via debug.
-
-**Talk line:**
-
-> “On Cloudflare, the same incomplete merge doesn’t just forge a fake order — it can take the isolate offline until reset. That’s still a configuration/code failure, not ‘the edge secured us.’”
-
-**Stage ops:** always `--reset` (or hit reset) before a second CF run. Prefer **Vercel** (or local) if you need the full pollution + forge chain live.
-
-Vercel sister run: **11 critical**, pollution **YES**, forged admin **YES**.
+| BOLA on `/api/orders` | junior-code | API1 |
+| Mass assignment privilege escalation | junior-code | API3 |
+| Cross-user write without ownership check | junior-code | API1 |
+| Admin route checks login only, not role | junior-code | API5 |
+| Forged JWTs accepted (weak/leaked secret) | junior-code | API2 |
 
 ---
 
-## 3. Other platform notes (this run)
+## 3. HIGH (9)
 
-| Probe | CF result |
-| --- | --- |
-| Self `/api/proxy` → debug | **1042** → external example.com **HIGH** open proxy |
-| IMDS `169.254.169.254` | **403** · `◇ PLATFORM` + **HIGH** no egress allowlist |
-| CORS `Origin: evil` | **HIGH** misconfig · `ACA-Origin: *` |
-| Internal pivot / redirect hop | Skipped (no `--internal`; API cannot reach your laptop loopback from CF) |
-
----
-
-## 4. HIGH / MEDIUM inventory (abbrev.)
-
-**HIGH:** CORS `*`, 50 mb body misconfig, no login rate limit, open redirect, open proxy external, IMDS-class no allowlist, HTML echo, unauth PII search, unauth settings write  
+| Finding | kind | Notes |
+| --- | --- | --- |
+| CORS misconfig allows any browser origin | misconfig | `ACA-Origin: *` |
+| Demo misconfig: custom ~50mb bodies | misconfig | not Express `json()` 100kb default |
+| No rate limiting on authentication | framework-gap | 40×401, zero 429 |
+| Open redirect | junior-code | |
+| Open proxy: arbitrary external URLs | junior-code | after CF 1042 self-block |
+| Open proxy no egress allowlist (IMDS-class) | junior-code | app did not refuse link-local URL |
+| HTML echo XSS class | junior-code | |
+| Unauthenticated PII search | junior-code | |
+| Unauthenticated settings write | junior-code | |
 
 **MEDIUM:** missing secure headers, stack leak misconfig, no app request timeout, login enumeration  
-
 **INFO:** `X-Powered-By: Express`
 
 ---
 
-## 5. Phase order (current script)
+## 4. Platform notes (this run)
 
-Reset → recon → headers → **CORS** → body → flood → traversal → redirect → **SSRF** (self/external/IMDS) → stack/echo → slow → unauth theft → enum → settings → **prototype pollution** → raw TCP (skip HTTPS) → login/BOLA/forge (skipped this run after pollution brick)
+| Probe | CF result |
+| --- | --- |
+| Self `/api/proxy` → debug | **1042** — edge/runtime, not app authz |
+| External open proxy (`example.com`) | **HIGH** — still works |
+| IMDS `169.254.169.254` | no IMDS data · `◇ PLATFORM` |
+| Internal pivot (`--internal`) | not used (API cannot reach your laptop from CF) |
 
 ---
 
-## 6. Compare to previous study (2026-07-31)
+## 5. Phase order (current attacker)
 
-| | Prior engagement | This engagement (2026-08-01) |
-| --- | --- | --- |
-| Critical | 9 | **4** |
-| Forged admin | YES | **no** (post-pollution login skip) |
-| Prototype pollution phase | not present | present → **Workers 1101** |
-| CORS / IMDS class | partial | **yes** |
-| Reset cleanup field | no | **yes** |
+Reset → recon → headers → CORS → body → flood → traversal → redirect → SSRF → stack/echo → slow → unauth theft → enum → settings → raw TCP (skip HTTPS) → **login / BOLA / mass-assign / admin / alg:none / forge**
 
-The drop in critical count is **not** “CF is safer for the JWT thesis.” Unauth dump + secret leak still land. The climax was interrupted by the pollution/Workers interaction. Use Vercel or local for the full chain; use CF for edge notes + unauth pwn + “pollution can brick the isolate.”
+With `--drama`, each phase waits for **Enter**.
+
+---
+
+## 6. Talk takeaway
+
+Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA, mass-assign, or forged admin. **Edge ≠ API authorization.**

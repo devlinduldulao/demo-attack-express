@@ -9,16 +9,17 @@
  * Console output is built for a live talk: every probe shows
  * intent → wire request → response → loot / finding, plus a running scoreboard.
  *
- * Usage (continuous terminal — phases run straight through):
+ * Usage:
  *   node attack.mjs <API_BASE_URL>
  *   node attack.mjs http://localhost:4000 --reset
- *   node attack.mjs https://vaultpay-api.vercel.app --reset
+ *   node attack.mjs https://vaultpay-api.vercel.app --drama --reset
  *   node attack.mjs http://localhost:4000 --verbose
  *   node attack.mjs http://localhost:4000 --skip-flood --skip-slow
  *
  * Flags:
  *   --quiet       minimal color + hide wire traces (summary only)
  *   --verbose     print response body previews on every request
+ *   --drama       wait for Enter between phases (stage pacing — same attack, you control the beat)
  *   --projector   no dim text, less wire noise, wider spacing (big rooms)
  *   --json        print machine-readable findings at the end
  *   --skip-flood  skip concurrent login flood
@@ -33,6 +34,8 @@
 
 import { createHmac } from "node:crypto";
 import net from "node:net";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 
 const rawArgs = process.argv.slice(2);
 const flags = new Set(rawArgs.filter((a) => a.startsWith("--") && !a.includes("=")));
@@ -41,6 +44,7 @@ const targetArg = positional[0];
 
 const quiet = flags.has("--quiet");
 const verbose = flags.has("--verbose");
+const drama = flags.has("--drama");
 const projector = flags.has("--projector");
 const asJson = flags.has("--json");
 const skipFlood = flags.has("--skip-flood");
@@ -65,7 +69,7 @@ const showWire = !quiet && !projector;
 
 if (!targetArg) {
   console.error(
-    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--projector] [--json] [--skip-flood] [--skip-slow] [--reset] [--gate=TOKEN] [--internal=URL]"
+    "Usage: node attack.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--projector] [--json] [--skip-flood] [--skip-slow] [--reset] [--gate=TOKEN] [--internal=URL]"
   );
   process.exit(2);
 }
@@ -108,6 +112,25 @@ const c = {
 };
 
 const startedAt = Date.now();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Stage pacing: --drama waits for Enter between phases so you can talk over a frozen screen.
+ * Without --drama, phases run straight through. Non-TTY falls back to a short sleep.
+ */
+const dramaPause = async () => {
+  if (!drama) return;
+  if (!input.isTTY) {
+    await sleep(400);
+    return;
+  }
+  const rl = readline.createInterface({ input, output });
+  try {
+    await rl.question(`  ${c.dim}[Enter] continue…${c.reset} `);
+  } finally {
+    rl.close();
+  }
+};
 
 function banner() {
   console.log(`
@@ -130,7 +153,7 @@ ${c.red}${c.bold}╔════════════════════
     `${c.bold}Thesis${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
   );
   console.log(
-    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
+    `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
   );
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
     console.log(
@@ -1617,21 +1640,36 @@ ${c.bold}${c.red}╔════════════════════
 async function main() {
   banner();
   await phaseReset();
+  await dramaPause();
   await phaseRecon();
+  await dramaPause();
   await phaseMissingSecurityHeaders();
+  await dramaPause();
   await phaseCorsMisconfig();
+  await dramaPause();
   await phaseBodyLimit();
+  await dramaPause();
   await phaseNoRateLimitFlood();
+  await dramaPause();
   await phasePathTraversal();
+  await dramaPause();
   await phaseOpenRedirect();
+  await dramaPause();
   await phaseSsrfProxy();
+  await dramaPause();
   await phaseStackAndEcho();
+  await dramaPause();
   await phaseSlowTimeout();
+  await dramaPause();
   await phaseUnauthDataTheft();
+  await dramaPause();
   await phaseAccountEnumeration();
+  await dramaPause();
   // Settings + raw TCP before the climax so the forged admin JWT is the last LOOT.
   await phaseSettingsMerge();
+  await dramaPause();
   await phaseRawHeaderAbuse();
+  await dramaPause();
   await phaseAuthzAndForgery();
   printReport();
 }

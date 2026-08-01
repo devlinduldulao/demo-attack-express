@@ -57,7 +57,7 @@ curl http://127.0.0.1:8787/api/health
 # expect: "express":"5"
 
 # from repo root:
-node attack/attack.mjs http://127.0.0.1:8787
+node attack/attack.mjs http://127.0.0.1:8787 --drama
 ```
 
 ## Gate public deploys (recommended)
@@ -72,7 +72,7 @@ npx wrangler deploy
 Attack with the same token:
 
 ```bash
-node attack/attack.mjs https://vaultpay-api.<you>.workers.dev --gate=YOUR_TOKEN
+node attack/attack.mjs https://vaultpay-api.<you>.workers.dev --drama --reset --gate=YOUR_TOKEN
 ```
 
 After the talk: delete the Worker or leave the gate on — see [`../TEARDOWN.md`](../TEARDOWN.md).
@@ -82,13 +82,15 @@ After the talk: delete the Worker or leave the gate on — see [`../TEARDOWN.md`
 From the **repository root**:
 
 ```bash
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset
 # if gated:
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --gate=YOUR_TOKEN
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset --gate=YOUR_TOKEN
 
 # Free tier / softer load:
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --skip-flood --skip-slow
+node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --skip-flood --skip-slow
 ```
+
+`--drama` waits for **Enter** between phases (talk control).
 
 
 On corporate TLS intercept (e.g. Zscaler), Node may need:

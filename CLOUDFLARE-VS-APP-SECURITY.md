@@ -10,7 +10,7 @@ Same intentional **Express 5** VaultPay app on two free clouds:
 
 Full studies: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
 
-**Engagement (2026-08-01):** CF **4** critical / **4.5s** (pollution can brick isolate → forge skipped) · Vercel **11** critical / **11.1s** · forged admin on **Vercel**.
+**Engagement (2026-08-01):** CF **9** critical / **4.3s** · Vercel **10** critical / **10.1s** · forged admin on **both**.
 
 ---
 
@@ -62,8 +62,8 @@ External open proxy (`example.com`) still succeeded → **HIGH** junior-code.
 
 | Cloud | Result |
 | --- | --- |
-| Cloudflare | `API PWNED — 4 critical · 71 requests · 4.5s` (authz/forge skipped after pollution brick) |
-| Vercel | `API PWNED — 11 critical · 74 requests · 11.1s` (full chain + pollution LOOT) |
+| Cloudflare | `API PWNED — 9 critical · 71 requests · 4.3s` |
+| Vercel | `API PWNED — 10 critical · 70 requests · 10.1s` |
 
 ---
 

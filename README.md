@@ -36,10 +36,10 @@ Migration notes: [Migrating to Express 5](https://expressjs.com/en/guide/migrati
 
 | Platform | URL | Latest engagement (2026-08-01) | Study |
 | --- | --- | --- | --- |
-| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | **4** critical · 71 req · 4.5s* | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
-| Vercel serverless | https://vaultpay-api.vercel.app | **11** critical · 74 req · 11.1s | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
+| Cloudflare Workers | https://vaultpay-api.devlinduldulao.workers.dev | **9** critical · 71 req · 4.3s · forge **YES** | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) |
+| Vercel serverless | https://vaultpay-api.vercel.app | **10** critical · 70 req · 10.1s · forge **YES** | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
 
-Comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
+(+1 critical on Vercel = self-SSRF of debug secret; CF blocks self-fetch with 1042.) Comparison: [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md).
 
 > **Educational only.** Only point the attack script at instances **you** deployed.
 > Public open-proxy / XSS sinks are abuse risk — gate or tear down ([`TEARDOWN.md`](TEARDOWN.md)).
@@ -121,12 +121,12 @@ They are a **30-second close**, not a running commentary during the attack.
 
 1. Open the live API: `GET /api/health` → `"express":"5"`.
 2. “Tutorial stack: Express 5 + JWT login. Deployed for public use.”
-3. Terminal (continuous — phases run straight through):
+3. Terminal (stage: Enter between phases):
 
    ```bash
-   node attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev
+   node attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev --drama --reset
    # if DEMO_GATE_TOKEN is set on the server:
-   node attack/attack.mjs https://… --gate=talk-day-secret
+   node attack/attack.mjs https://… --drama --reset --gate=talk-day-secret
    ```
 
 4. Watch unauth probes first, then PII theft, then authz collapse and forged admin JWT.
@@ -254,7 +254,8 @@ Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
 
 | Flag | Use |
 | --- | --- |
-| (default) | Continuous phases, wire logs, LOOT, scoreboard |
+| (default) | Phases run straight through, wire logs, LOOT, scoreboard |
+| `--drama` | **Wait for Enter** between phases (talk control — same attack) |
 | `--verbose` | Response body previews |
 | `--projector` | No dim text, less wire noise (big rooms) |
 | `--reset` | `POST /api/demo/reset` first (warm-isolate hygiene) |
