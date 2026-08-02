@@ -9,6 +9,14 @@
  * Console output is built for a live talk: every probe shows
  * intent → wire request → response → loot / finding, plus a running scoreboard.
  *
+ * Phase navigation (log title → function)
+ * ---------------------------------------
+ * Each demo beat prints:  `PHASE NN  ·  <title>`  via step(title).
+ * To find which function owns a console phase:
+ *   1. Jump to the **PHASE MAP** comment above the first phase* function
+ *   2. Or search `async function phase` / the exact step("…") title string
+ *   3. main() at the bottom lists call order with the same names
+ *
  * Usage:
  *   node attack.mjs <API_BASE_URL>
  *   node attack.mjs http://localhost:4000 --reset
@@ -165,7 +173,25 @@ ${c.red}${c.bold}╔════════════════════
   );
 }
 
+/**
+ * Running phase counter for console banners.
+ * Incremented only when {@link step} runs — so numbers shift if a phase
+ * is skipped early (e.g. phaseReset without --reset never calls step).
+ */
 let phaseNo = 0;
+
+/**
+ * Prints the magenta PHASE banner seen in console logs (and in each phase* JSDoc):
+ *
+ *   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *     PHASE 01  ·  <title>
+ *   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *
+ * Call once at the start of each attack phase function.
+ * Numbers: with --reset, PHASE MAP 01–16; without --reset, skip 01 and renumber.
+ *
+ * @param {string} title - Exact middle line of the banner (must match step string + JSDoc)
+ */
 function step(title) {
   phaseNo += 1;
   const n = String(phaseNo).padStart(2, "0");
@@ -478,6 +504,106 @@ function notePlatform(title, detail) {
 // ---------------------------------------------------------------------------
 // Attack phases
 // ---------------------------------------------------------------------------
+//
+// PHASE MAP — same banner shape as the live console (with --reset numbering).
+// Without --reset, phaseReset prints nothing and every later number is N-1.
+// Scroll to `async function phase…` — each function’s JSDoc opens with this box.
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 01  ·  Demo reset — re-seed in-memory state
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseReset  (--reset only)
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 02  ·  Recon — is the API alive?
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseRecon
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 03  ·  Missing browser security headers (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseMissingSecurityHeaders
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseCorsMisconfig
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 05  ·  Oversized JSON body (demo misconfig — not Express default)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseBodyLimit
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 06  ·  Login flood — no rate limit (framework gap)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseNoRateLimitFlood  (--skip-flood)
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 07  ·  Path traversal on /api/files (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phasePathTraversal
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 08  ·  Open redirect on /api/go (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseOpenRedirect
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 09  ·  Open proxy / SSRF on /api/proxy (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseSsrfProxy  (+ probeMetadataEgress, probeInternalPivot)
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 10  ·  Error stack leak + reflected XSS sink (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseStackAndEcho
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 11  ·  Slow handler holds the connection (no login)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseSlowTimeout  (--skip-slow)
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 12  ·  Unauthenticated data theft (users / IDOR / search / debug)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseUnauthDataTheft
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 13  ·  Account enumeration via login error messages
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseAccountEnumeration
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 14  ·  Unauthenticated settings write
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseSettingsMerge
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 15  ·  Raw socket header / framing probes (HTTP only)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseRawHeaderAbuse  (HTTPS targets skip body)
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PHASE 16  ·  Login, BOLA, mass assignment, admin, JWT forge
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   → phaseAuthzAndForgery  (uses demoLogin)
+//
+// Then: printReport() → ENGAGEMENT REPORT (not a PHASE banner)
+// Search: "PHASE 13" or step("…") title string.
+// ---------------------------------------------------------------------------
+
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 01  ·  Demo reset — re-seed in-memory state
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseReset
+ * Only when --reset (otherwise silent return, no banner). Without --reset, later PHASE NN are N-1.
+ * Endpoint: POST /api/demo/reset  (optional header X-VaultPay-Reset)
+ *
+ * Why: warm Worker/serverless isolates keep mutated demo users (e.g. "Hijacked Bob").
+ * Re-seed Alice/Bob/admin before the talk reveal so LOOT is clean.
+ */
 async function phaseReset() {
   if (!doReset) return;
   step("Demo reset — re-seed in-memory state");
@@ -493,6 +619,16 @@ async function phaseReset() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 02  ·  Recon — is the API alive?
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseRecon
+ * Endpoints: GET /api/health, GET / (fallback + self-docs)
+ *
+ * Confirms the target responds and optionally prints advertised route docs from `/`.
+ * Exits process if the host is unreachable.
+ */
 async function phaseRecon() {
   step("Recon — is the API alive?");
   intent("Confirm the target responds before we burn time on exploits.");
@@ -519,6 +655,16 @@ async function phaseRecon() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 03  ·  Missing browser security headers (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseMissingSecurityHeaders
+ * Endpoint: GET /api/health (header audit only)
+ *
+ * Checks for CSP / XFO / nosniff / HSTS / referrer / permissions-policy and
+ * X-Powered-By. Records framework-gap findings when headers are missing.
+ */
 async function phaseMissingSecurityHeaders() {
   step("Missing browser security headers (no login)");
   intent(
@@ -563,8 +709,14 @@ async function phaseMissingSecurityHeaders() {
 }
 
 /**
- * CORS misconfig: this demo added the cors package with origin "*".
- * Bare Express ships no CORS middleware at all — not "allow all by default".
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseCorsMisconfig
+ * Endpoint: GET /api/health with Origin: https://evil-attacker.example
+ *
+ * Demo misconfig: app added cors({ origin: "*" }). Bare Express has no CORS at all.
+ * Finding kind is misconfig, not framework-gap.
  */
 async function phaseCorsMisconfig() {
   step("CORS misconfig — any Origin allowed (no login)");
@@ -598,6 +750,16 @@ async function phaseCorsMisconfig() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 05  ·  Oversized JSON body (demo misconfig — not Express default)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseBodyLimit
+ * Endpoint: POST /api/auth/login with ~1.5 MiB password field
+ *
+ * Honest demo: Express express.json() default limit is 100kb → 413.
+ * This app raised BODY_LIMIT (~50mb) so the probe proves misconfig, not a framework default.
+ */
 async function phaseBodyLimit() {
   step("Oversized JSON body (demo misconfig — not Express default)");
   intent(
@@ -635,6 +797,16 @@ async function phaseBodyLimit() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 06  ·  Login flood — no rate limit (framework gap)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseNoRateLimitFlood
+ * Endpoint: 40× parallel POST /api/auth/login (wrong passwords; wire logs collapsed)
+ * Skip:     --skip-flood (banner still prints; body short-circuits)
+ *
+ * Proves Express has no built-in auth throttle — zero 429s expected on this demo.
+ */
 async function phaseNoRateLimitFlood() {
   step("Login flood — no rate limit (framework gap)");
   intent(
@@ -693,6 +865,15 @@ async function phaseNoRateLimitFlood() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 07  ·  Path traversal on /api/files (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phasePathTraversal
+ * Endpoints: GET /api/files?name=welcome.txt (legit), then ../secrets/jwt-backup.txt
+ *
+ * App-code hole: vfs join with no jail. On success, steals JWT_SECRET into stolen.jwtSecret.
+ */
 async function phasePathTraversal() {
   step("Path traversal on /api/files (no login)");
   intent("App file endpoint joins user input with no jail — not an Express default.");
@@ -741,6 +922,15 @@ async function phasePathTraversal() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 08  ·  Open redirect on /api/go (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseOpenRedirect
+ * Endpoint: GET /api/go?url=https://evil-phish.example/steal
+ *
+ * App res.redirect(user URL) with no allowlist — 3xx Location points at attacker host.
+ */
 async function phaseOpenRedirect() {
   step("Open redirect on /api/go (no login)");
   intent("App res.redirect(user input) with no allowlist — framework has no safe-redirect helper.");
@@ -768,8 +958,15 @@ async function phaseOpenRedirect() {
 const AWS_IMDS_URL = "http://169.254.169.254/latest/meta-data/";
 
 /**
- * Probe unrestricted egress via /api/proxy (SSRF / cloud-metadata class).
- * Call after self/external. Honest: CF/Vercel often lack IMDS; finding is "no egress policy" when proxy exists.
+ * SSRF helper (no own PHASE banner) — runs under:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 09  ·  Open proxy / SSRF on /api/proxy (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Called from {@link phaseSsrfProxy}. Wire: ssrf-imds
+ * Endpoint: GET /api/proxy?url=http://169.254.169.254/latest/meta-data/
+ *
+ * Probe unrestricted egress / cloud-metadata class. Honest: CF/Vercel often
+ * lack IMDS; finding is still "no egress policy" when the open proxy exists.
  * @param {{ proxyAlive: boolean }} opts - false when /api/proxy is missing
  */
 async function probeMetadataEgress(opts = { proxyAlive: true }) {
@@ -856,18 +1053,21 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
 }
 
 /**
- * SSRF pivot against a stand-in "internal service".
+ * SSRF helper (no own PHASE banner) — runs under:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 09  ·  Open proxy / SSRF on /api/proxy (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Called from {@link phaseSsrfProxy}. Wire: ssrf-internal, ssrf-redirect-hop
+ * Gate: only when --internal=URL (or INTERNAL_SERVICE_URL) is set
  *
- * Real IMDS is unreachable from Workers/Vercel, so the honest local version of
- * the same attack uses a service the API can reach and the attacker cannot:
- * `scripts/internal-service.mjs`, bound to loopback on its own port. It serves
- * IAM-shaped JSON at an IMDS-style path plus an open redirector.
+ * Pivot against a stand-in "internal service" (`scripts/internal-service.mjs`).
+ * Real IMDS is unreachable from Workers/Vercel; this models the same class:
+ * a host the API can reach and the attacker often cannot.
  *
  * Two probes:
- *  1. direct  — proxy fetches the internal URL
- *  2. hop     — proxy fetches a PUBLIC-looking URL that 302s to the internal
- *               one. `/api/proxy` uses `redirect: "follow"`, so a first-URL
- *               allowlist would pass this. The check has to run per hop.
+ *  1. direct — proxy fetches the internal IAM-shaped URL
+ *  2. hop    — proxy fetches a public-looking URL that 302s internal
+ *              (`redirect: "follow"`); first-URL allowlists lose here
  *
  * @param {{ proxyAlive: boolean }} opts
  */
@@ -941,6 +1141,20 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 09  ·  Open proxy / SSRF on /api/proxy (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseSsrfProxy
+ * Endpoints / wire labels:
+ *   - ssrf-self      GET /api/proxy?url=<BASE>/api/debug/config
+ *   - ssrf-external  GET /api/proxy?url=https://example.com/  (fallback if CF 1042)
+ *   - then {@link probeMetadataEgress}  (ssrf-imds)
+ *   - then {@link probeInternalPivot}   (ssrf-internal, ssrf-redirect-hop; needs --internal)
+ *
+ * May loot JWT_SECRET via self-fetch of /api/debug/config. Platform notes when
+ * edge blocks self-subrequests (e.g. Cloudflare error 1042).
+ */
 async function phaseSsrfProxy() {
   step("Open proxy / SSRF on /api/proxy (no login)");
   intent(
@@ -1031,6 +1245,18 @@ async function phaseSsrfProxy() {
   await probeInternalPivot({ proxyAlive });
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 10  ·  Error stack leak + reflected XSS sink (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseStackAndEcho
+ * Endpoints:
+ *   - GET /api/boom              (stack leak; wire: stack-leak)
+ *   - GET /api/echo?msg=…        (HTML reflection; wire: html-echo-mild / xss-echo-noisy)
+ *
+ * Stack: demo custom error handler (misconfig vs Express production default).
+ * XSS: app text/html echo sink (app-code). Edge WAF may 403 noisy payloads.
+ */
 async function phaseStackAndEcho() {
   step("Error stack leak + reflected XSS sink (no login)");
   intent(
@@ -1100,6 +1326,17 @@ async function phaseStackAndEcho() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 11  ·  Slow handler holds the connection (no login)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseSlowTimeout
+ * Endpoint: GET /api/slow?ms=3000  (wire: slow-handler)
+ * Skip:     --skip-slow (banner still prints; body short-circuits)
+ *
+ * Framework gap: Express has no per-request timeout middleware; 3s hang proves
+ * no tight app-level budget (Node default requestTimeout is 5 min).
+ */
 async function phaseSlowTimeout() {
   step("Slow handler holds the connection (no login)");
   intent(
@@ -1129,6 +1366,19 @@ async function phaseSlowTimeout() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 12  ·  Unauthenticated data theft (users / IDOR / search / debug)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseUnauthDataTheft
+ * Endpoints / wire labels:
+ *   - user-dump    GET /api/users
+ *   - idor-user    GET /api/users/:id
+ *   - debug-leak   GET /api/debug/config   → may set stolen.jwtSecret
+ *   - pii-search   GET /api/search?q=oslo
+ *
+ * JWT thesis beat: full PII with no password and no token. Fills stolen.users.
+ */
 async function phaseUnauthDataTheft() {
   step("Unauthenticated data theft (users / IDOR / search / debug)");
   intent("JWT thesis: no password, no token — full PII. Authn was never applied.");
@@ -1202,6 +1452,17 @@ async function phaseUnauthDataTheft() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 13  ·  Account enumeration via login error messages
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseAccountEnumeration
+ * Endpoints:
+ *   - enum-missing   POST /api/auth/login  (unknown email)
+ *   - enum-wrong-pw  POST /api/auth/login  (alice@example.com, wrong password)
+ *
+ * Different error strings for missing user vs wrong password ⇒ free user discovery.
+ */
 async function phaseAccountEnumeration() {
   step("Account enumeration via login error messages");
   intent("Same generic error always. Different messages = free user discovery.");
@@ -1239,7 +1500,14 @@ const DEMO_CREDENTIALS = [
 ];
 
 /**
- * Log in with the first seed account that works.
+ * Auth helper (no own PHASE banner) — runs under:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 16  ·  Login, BOLA, mass assignment, admin, JWT forge
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Used by {@link phaseAuthzAndForgery}.
+ * Tries DEMO_CREDENTIALS until POST /api/auth/login returns a token.
+ * Wire labels: login:<email>
+ *
  * @returns {Promise<{ email: string, password: string, token: string, user: any } | null>}
  */
 async function demoLogin() {
@@ -1256,6 +1524,24 @@ async function demoLogin() {
   return null;
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 16  ·  Login, BOLA, mass assignment, admin, JWT forge
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseAuthzAndForgery
+ * Last phase in main() (after settings + raw TCP so forged admin JWT is the climax LOOT)
+ * Helper:   {@link demoLogin}
+ * Endpoints / wire labels:
+ *   - login:<email>       POST /api/auth/login
+ *   - bola-orders         GET /api/orders           (Bearer user JWT)
+ *   - mass-assign-admin   PUT /api/users/:id        role=admin, balance=…
+ *   - cross-user-write    PUT /api/users/2          (Bob hijack)
+ *   - admin-stats         GET /api/admin/stats      (BFLA — authn only)
+ *   - jwt-alg-none        GET /api/me               (expect reject on jsonwebtoken v9)
+ *   - forged-admin-me     GET /api/me               (HS256 with stolen.jwtSecret)
+ *
+ * Sets stolen.token, stolen.escalated, stolen.forgedAdminToken, stolen.orders.
+ */
 async function phaseAuthzAndForgery() {
   step("Login, BOLA, mass assignment, admin, JWT forge");
   intent("JWT proves someone logged in. It does not decide what they may read or write.");
@@ -1432,6 +1718,16 @@ async function phaseAuthzAndForgery() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 14  ·  Unauthenticated settings write
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseSettingsMerge
+ * Endpoints:
+ *   - settings-get      GET /api/settings
+ *   - settings-put      PUT /api/settings  (mass-assign arbitrary keys)
+ *   - settings-restore  PUT /api/settings  (restore for clean re-run; silent unless --verbose)
+ */
 async function phaseSettingsMerge() {
   step("Unauthenticated settings write");
   intent("State-changing PUT with no auth and no field allowlist.");
@@ -1467,6 +1763,17 @@ async function phaseSettingsMerge() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 15  ·  Raw socket header / framing probes (HTTP only)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseRawHeaderAbuse
+ * Transport: {@link rawHttp} (raw TCP HTTP/1.1 — not fetch)
+ * Wire labels: huge-header (32 KB header), absolute-uri (absolute-form request line)
+ * Skip:     entire body on HTTPS targets (banner still prints, then info + return)
+ *
+ * Posture notes for reverse-proxy / header-size handling — not classic app authz.
+ */
 async function phaseRawHeaderAbuse() {
   step("Raw socket header / framing probes (HTTP only)");
   intent("Oversized headers + absolute-form request line — posture notes for reverse proxies.");
@@ -1512,6 +1819,16 @@ async function phaseRawHeaderAbuse() {
   }
 }
 
+/**
+ * ╔══════════════════════════════════════════════════════════════════════╗
+ * ║                        ENGAGEMENT REPORT                             ║
+ * ╚══════════════════════════════════════════════════════════════════════╝
+ * (Not a PHASE banner — end of main(), after every phase*)
+ * Function: printReport
+ *
+ * Scoreboard + all findings + DEMO RESULT line.
+ * With --json, also prints a machine-readable findings object.
+ */
 function printReport() {
   const bySev = stolen.findings.reduce((m, f) => {
     m[f.severity] = (m[f.severity] || 0) + 1;
@@ -1659,6 +1976,31 @@ ${c.bold}${c.red}╔════════════════════
   }
 }
 
+/**
+ * Orchestrator — call order of every demo phase.
+ *
+ * Console flow: banner → PHASE 01…N (see PHASE MAP) → ENGAGEMENT REPORT.
+ * Between phases: {@link dramaPause} if --drama (Enter to continue).
+ *
+ * Order (stable; search function names when a log title is unclear):
+ *   1. phaseReset                 (--reset only; else no banner)
+ *   2. phaseRecon
+ *   3. phaseMissingSecurityHeaders
+ *   4. phaseCorsMisconfig
+ *   5. phaseBodyLimit
+ *   6. phaseNoRateLimitFlood      (--skip-flood short-circuits body)
+ *   7. phasePathTraversal
+ *   8. phaseOpenRedirect
+ *   9. phaseSsrfProxy             (+ probeMetadataEgress, probeInternalPivot)
+ *  10. phaseStackAndEcho
+ *  11. phaseSlowTimeout           (--skip-slow short-circuits body)
+ *  12. phaseUnauthDataTheft
+ *  13. phaseAccountEnumeration
+ *  14. phaseSettingsMerge
+ *  15. phaseRawHeaderAbuse        (HTTP only; HTTPS short-circuits body)
+ *  16. phaseAuthzAndForgery       (climax: BOLA / mass-assign / forged JWT)
+ *  ——  printReport
+ */
 async function main() {
   banner();
   await phaseReset();
