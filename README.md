@@ -266,6 +266,8 @@ Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
 | `--skip-slow` | Skip `/api/slow` |
 | `--json` | Machine-readable findings at end |
 
+End of run prints **ENGAGEMENT REPORT → DEMO RESULT → REMEDIATION** (one quick-fix map by kind). Fixes are **not** printed mid-phase so LOOT stays stage-clean.
+
 ---
 
 ## Ethics & license

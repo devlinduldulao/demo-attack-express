@@ -392,7 +392,8 @@ Do **not** open a 17-row feature matrix. Link README later.
 1. Health → express 5  
 2. `node attack/attack.mjs URL` without `--drama`
 3. Jump to LOOT users + JWT_SECRET + DEMO RESULT  
-4. One line: Cloudflare ≠ authz; JWT ≠ security model  
+4. Optional: scroll to **REMEDIATION** footer (fix map by kind — not during LOOT)  
+5. One line: Cloudflare ≠ authz; JWT ≠ security model  
 
 ---
 

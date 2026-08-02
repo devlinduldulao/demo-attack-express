@@ -37,6 +37,8 @@
  *   --internal=URL  base URL of the SSRF stand-in "internal service"
  *                   (or set INTERNAL_SERVICE_URL; see scripts/internal-service.mjs)
  *
+ * End of run: ENGAGEMENT REPORT → DEMO RESULT → REMEDIATION footer (once, not per phase).
+ *
  * Legal: only attack systems you own or have written permission to test.
  */
 
@@ -1827,9 +1829,70 @@ async function phaseAuthzAndForgery() {
  * (Not a PHASE banner — end of main(), after every phase*)
  * Function: printReport
  *
- * Scoreboard + all findings + DEMO RESULT line.
+ * Scoreboard + all findings + DEMO RESULT line + remediation footer.
  * With --json, also prints a machine-readable findings object.
+ *
+ * Remediation is printed once at the end (not per phase) so --drama stays
+ * LOOT-focused; the footer is what the room screenshots after "PWNED".
+ * Every bullet maps to at least one finding this script actually raises —
+ * keep them in sync when adding a phase.
  */
+function printRemediation() {
+  console.log(`
+${c.bold}${c.green}╔══════════════════════════════════════════════════════════════════════╗
+║                     REMEDIATION (quick fix map)                      ║
+╚══════════════════════════════════════════════════════════════════════╝${c.reset}
+`);
+  console.log(
+    `  ${c.dim}One block at the end — not during LOOT. Fix by kind tag on each finding.${c.reset}\n`
+  );
+
+  console.log(`  ${c.red}${c.bold}(app-code)${c.reset}  — fix in your handlers (framework will not invent these)
+    · Ownership (BOLA/IDOR): order.userId === req.user.sub — on every read AND write
+    · Roles (BFLA): requireRole("admin") — login alone is not enough
+    · Request field allowlist — never merge raw JSON into user/role (kills mass
+      assignment and __proto__ pollution in one move)
+    · Response field allowlist — pick what you return; no ssn / cardNumber /
+      password leaving a list or search endpoint
+    · Path jail on any file path from user input
+      ${c.dim}path.resolve(root, name) must stay under root; or allowlist names only${c.reset}
+    · SSRF: allowlist egress hosts; reject link-local/metadata (169.254.169.254)
+      and anything that is not http(s)
+    · Output encoding: never send user input as text/html — return JSON, or escape
+    · Open redirect: relative paths only; no public debug route returning secrets;
+      generic login errors ("invalid credentials", not "no account for that email")
+    · Authn ≠ authz: a valid JWT is not an access-control policy\n`);
+
+  console.log(`  ${c.yellow}${c.bold}(misconfig)${c.reset} — stop weakening safer defaults you already had
+    · Body: prefer express.json() default 100kb; raise only per-route if needed
+    · Stacks: don't hand-roll an error handler that returns err.stack — Express's
+      finalhandler already omits it when NODE_ENV=production
+    · CORS: never origin:"*" for credentialed/browser APIs; allowlist origins\n`);
+
+  console.log(`  ${c.blue}${c.bold}(framework-gap)${c.reset} — Express does not ship these; you must add them
+    · Rate limit / login throttle (e.g. express-rate-limit)
+    · Secure headers (helmet or equivalent)
+    · App-level request timeout (not only Node's long socket defaults)
+    · Or use a stack that fails closed on body/headers/timeout/SSRF by default\n`);
+
+  console.log(`  ${c.bold}Tiny code shapes (illustrative):${c.reset}
+    ${c.dim}// ownership
+    if (order.userId !== req.user.sub) return res.status(403).json({ error: "forbidden" });
+    // path jail
+    const abs = path.resolve(PUBLIC, name);
+    if (!abs.startsWith(PUBLIC + path.sep)) return res.sendStatus(404);
+    // field allowlist
+    const { name, theme } = req.body; // never ...req.body onto user.role${c.reset}\n`);
+
+  console.log(
+    `  ${c.yellow}Remember:${c.reset} defaults and middleware shrink footguns;` +
+      ` ownership and path jails are still your code.`
+  );
+  console.log(
+    `  ${c.dim}Deeper notes: README.md · TALK.md · CLOUDFLARE-VS-APP-SECURITY.md · TEARDOWN.md${c.reset}`
+  );
+}
+
 function printReport() {
   const bySev = stolen.findings.reduce((m, f) => {
     m[f.severity] = (m[f.severity] || 0) + 1;
@@ -1945,6 +2008,19 @@ ${c.bold}${c.red}╔════════════════════
   Tear down or gate public deploys after the talk (TEARDOWN.md).${c.reset}
 `);
 
+  // Stage order: findings → PWNED banner → homework (screenshot-friendly).
+  if (criticals > 0) {
+    console.log(
+      `${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
+    );
+  } else {
+    console.log(
+      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s (unexpected for this demo)  ${c.reset}\n`
+    );
+  }
+
+  printRemediation();
+
   if (asJson) {
     console.log(
       JSON.stringify(
@@ -1963,16 +2039,6 @@ ${c.bold}${c.red}╔════════════════════
         null,
         2
       )
-    );
-  }
-
-  if (criticals > 0) {
-    console.log(
-      `${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
-    );
-  } else {
-    console.log(
-      `${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s (unexpected for this demo)  ${c.reset}\n`
     );
   }
 }
