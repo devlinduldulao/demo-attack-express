@@ -98,27 +98,30 @@ const PORT = Number(baseUrl.port) || (baseUrl.protocol === "https:" ? 443 : 80);
 const IS_TLS = baseUrl.protocol === "https:";
 
 // ---------------------------------------------------------------------------
-// Colors + console helpers
+// Colors + console helpers (crafted for high contrast in dark & light terminals)
 // ---------------------------------------------------------------------------
 const isTTY = process.stdout.isTTY && !quiet;
-// --projector: no dim grey (washed-out projectors kill \x1b[2m).
-const dimCode = projector ? "" : isTTY ? "\x1b[2m" : "";
+const supports256 = isTTY && (typeof process.stdout.hasColors === "function" ? process.stdout.hasColors(256) : true);
+
+// Dim gray that works on both dark (black) and light (white) background themes:
+const dimCode = projector ? "" : isTTY ? (supports256 ? "\x1b[38;5;245m" : "\x1b[2m") : "";
+
 const c = {
   reset: isTTY ? "\x1b[0m" : "",
   bold: isTTY ? "\x1b[1m" : "",
   dim: dimCode,
-  red: isTTY ? "\x1b[31m" : "",
-  green: isTTY ? "\x1b[32m" : "",
-  yellow: isTTY ? "\x1b[33m" : "",
-  blue: isTTY ? "\x1b[34m" : "",
-  magenta: isTTY ? "\x1b[35m" : "",
-  cyan: isTTY ? "\x1b[36m" : "",
-  white: isTTY ? "\x1b[37m" : "",
-  bgRed: isTTY ? "\x1b[41m" : "",
-  bgGreen: isTTY ? "\x1b[42m" : "",
-  bgYellow: isTTY ? "\x1b[43m" : "",
-  bgBlue: isTTY ? "\x1b[44m" : "",
-  bgMagenta: isTTY ? "\x1b[45m" : "",
+  red: isTTY ? (supports256 ? "\x1b[38;5;203m" : "\x1b[91m") : "",
+  green: isTTY ? (supports256 ? "\x1b[38;5;40m" : "\x1b[92m") : "",
+  yellow: isTTY ? (supports256 ? "\x1b[38;5;208m" : "\x1b[93m") : "", // Warm Amber — highly visible on both light & dark!
+  blue: isTTY ? (supports256 ? "\x1b[38;5;39m" : "\x1b[94m") : "",   // Bright Sky Blue — visible on both light & dark!
+  magenta: isTTY ? (supports256 ? "\x1b[38;5;171m" : "\x1b[95m") : "",
+  cyan: isTTY ? (supports256 ? "\x1b[38;5;38m" : "\x1b[96m") : "",
+  white: isTTY ? (supports256 ? "\x1b[38;5;231m" : "\x1b[97m") : "",
+  bgRed: isTTY ? (supports256 ? "\x1b[48;5;196m" : "\x1b[41m") : "",
+  bgGreen: isTTY ? (supports256 ? "\x1b[48;5;34m" : "\x1b[42m") : "",
+  bgYellow: isTTY ? (supports256 ? "\x1b[48;5;208m" : "\x1b[43m") : "",
+  bgBlue: isTTY ? (supports256 ? "\x1b[48;5;33m" : "\x1b[44m") : "",
+  bgMagenta: isTTY ? (supports256 ? "\x1b[48;5;127m" : "\x1b[45m") : "",
 };
 
 const startedAt = Date.now();

@@ -103,8 +103,15 @@ if (!ready) {
   process.exit(1);
 }
 
-console.log(`\n  demo: vulnerable API ready at ${base}`);
-console.log(`  demo: internal service (SSRF target) at ${internalBase}\n`);
+const isTTY = process.stdout.isTTY;
+const supports256 = isTTY && (typeof process.stdout.hasColors === "function" ? process.stdout.hasColors(256) : true);
+const cyan = isTTY ? (supports256 ? "\x1b[38;5;38m" : "\x1b[96m") : "";
+const magenta = isTTY ? (supports256 ? "\x1b[38;5;171m" : "\x1b[95m") : "";
+const bold = isTTY ? "\x1b[1m" : "";
+const reset = isTTY ? "\x1b[0m" : "";
+
+console.log(`\n  ${bold}${magenta}demo:${reset} vulnerable API ready at ${cyan}${base}${reset}`);
+console.log(`  ${bold}${magenta}demo:${reset} internal service (SSRF target) at ${cyan}${internalBase}${reset}\n`);
 
 const attack = spawn(
   process.execPath,

@@ -22,20 +22,28 @@ const server = app.listen(PORT, (error) => {
     console.error("Failed to bind server:", error);
     throw error;
   }
+  const isTTY = process.stdout.isTTY;
+  const supports256 = isTTY && (typeof process.stdout.hasColors === "function" ? process.stdout.hasColors(256) : true);
+  const cyan = isTTY ? (supports256 ? "\x1b[38;5;38m" : "\x1b[96m") : "";
+  const yellow = isTTY ? (supports256 ? "\x1b[38;5;208m" : "\x1b[93m") : "";
+  const magenta = isTTY ? (supports256 ? "\x1b[38;5;171m" : "\x1b[95m") : "";
+  const bold = isTTY ? "\x1b[1m" : "";
+  const reset = isTTY ? "\x1b[0m" : "";
+
   console.log("");
-  console.log("  ╔══════════════════════════════════════════════════════╗");
-  console.log("  ║  VaultPay API  —  Express 5 · INTENTIONALLY WEAK      ║");
-  console.log("  ╚══════════════════════════════════════════════════════╝");
-  console.log(`  Listening on http://localhost:${PORT}`);
+  console.log(`  ${magenta}${bold}╔══════════════════════════════════════════════════════╗${reset}`);
+  console.log(`  ${magenta}${bold}║  VaultPay API  —  Express 5 · INTENTIONALLY WEAK      ║${reset}`);
+  console.log(`  ${magenta}${bold}╚══════════════════════════════════════════════════════╝${reset}`);
+  console.log(`  Listening on ${cyan}http://localhost:${PORT}${reset}`);
   console.log(`  Express:     5.x (see package.json)`);
-  console.log(`  JWT secret:  ${jwtSecret}`);
+  console.log(`  JWT secret:  ${yellow}${jwtSecret}${reset}`);
   console.log("  Demo logins:");
-  console.log("    alice@example.com / password123   (user)");
-  console.log("    bob@example.com   / bobsecret     (user)");
-  console.log("    admin@vaultpay.demo / admin123    (admin)");
+  console.log(`    ${cyan}alice@example.com${reset} / password123   (user)`);
+  console.log(`    ${cyan}bob@example.com${reset}   / bobsecret     (user)`);
+  console.log(`    ${cyan}admin@vaultpay.demo${reset} / admin123    (admin)`);
   console.log("");
   console.log("  Attack this instance with:");
-  console.log(`    node ../attack/attack.mjs http://localhost:${PORT}`);
+  console.log(`    ${bold}node ../attack/attack.mjs http://localhost:${PORT}${reset}`);
   console.log("");
 });
 

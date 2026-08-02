@@ -88,8 +88,14 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`  internal-service (SSRF stand-in) on http://${HOST}:${PORT}`);
-  console.log(`  credentials path: ${ROLE_PATH}`);
+  const isTTY = process.stdout.isTTY;
+  const supports256 = isTTY && (typeof process.stdout.hasColors === "function" ? process.stdout.hasColors(256) : true);
+  const cyan = isTTY ? (supports256 ? "\x1b[38;5;38m" : "\x1b[96m") : "";
+  const yellow = isTTY ? (supports256 ? "\x1b[38;5;208m" : "\x1b[93m") : "";
+  const reset = isTTY ? "\x1b[0m" : "";
+
+  console.log(`  internal-service (SSRF stand-in) on ${cyan}http://${HOST}:${PORT}${reset}`);
+  console.log(`  credentials path: ${yellow}${ROLE_PATH}${reset}`);
 });
 
 const shutdown = () => {

@@ -20,17 +20,49 @@ Those ship in **our** `app.js` / `BODY_LIMIT` on every host (see [Terminal: whos
 
 ---
 
-## Projector order
+## Projector order (~40 min)
 
-| Screen | What | File / command |
-| --- | --- | --- |
-| 1 | Frame + health | browser / `GET /api/health` |
-| 2 | **Terminal** (primary visual) | `node attack/attack.mjs URL --drama --reset` |
-| 3 | Edge vs app (short bullets, not a markdown table dump) | key lines from [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) |
-| 4 | Same code, two clouds | [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) |
-| 5 | Close | 5 lines on slide or spoken (include misconfig honesty) |
+**Rule:** terminal is still the hero (~15 min continuous). Slides frame and close; they do not re-run the attack in bullet form.
 
-Do **not** paste full markdown tables on the projector. Terminal = visual; slides = framing.
+| # | When | Slide title | On screen (keep sparse) | Say in one line |
+| --- | --- | --- | --- | --- |
+| 1 | 0:00 | Title / thesis | *JWT ≠ secure API* · *nothing is not a security model* | “Tutorial stack + cloud ≠ security model.” |
+| 2 | 0:02 | What we’re attacking | Black-box API · Express 5 + JWT · no SPA · live URL | “No frontend to hack. Hit the API URL.” |
+| 3 | ~0:04 | **How to read the terminal** | See [Legend slide](#legend-slide-how-to-read-the-terminal) below | “Demo scoring + loot — not CVSS.” |
+| 4 | 0:05–20 | *(leave up or black)* | **Terminal** is primary | `--drama --projector --reset` |
+| 5 | ~12–15 | Authn ≠ authz (optional mid-attack) | Login = who · Authz = what you’re allowed to touch · BOLA/IDOR | After first JWT loot / user dump — 20s then back to terminal |
+| 6 | 20:00 | Honest labels | `framework-gap` · `misconfig` · `app-code` · `◇ PLATFORM` | “Don’t blame Express for what we weakened.” |
+| 7 | 20:30 | Defaults vs incomplete setup | 3 false claims → truth (body / stack / CORS) | Disarm the skeptic |
+| 8 | 22:00 | What Express still doesn’t ship | 5–6 bullets: headers, rate limit, timeout, authz, schema, SSRF helper | “Defaults fine where they exist; few exist.” |
+| 9 | 25:00 | Same code, two clouds | Diagram: one `app.js` → CF / Vercel · both pwned | “CDN changes probes, not authz.” |
+| 10 | 28:00 | Edge ≠ API security | CF 1042 / HSTS vs unauth PII + forge | “Platform blocked a probe; cards still dumped.” |
+| 11 | 32:00 | Whose fault? | misconfig = us · gap = Express empty box · app-code = routes · PLATFORM = edge | Match report **Whose fault?** block |
+| 12 | 35:00 | Close (5 lines) | Authn≠authz · JWT one control · nothing≠model · edge≠API · misconfig is us | No product pitch until last 30s |
+| 13 | 38:00+ | Q&A / resources | Repo · TEARDOWN · only systems you own | Gate or tear down after |
+
+**Do not add:** full OWASP Top 10 deck, 17-row finding dump, product comparison matrix, multi-slide CVSS lecture.
+
+Do **not** paste full markdown tables from the studies on the projector. Terminal = visual; slides = framing.
+
+### Legend slide (how to read the terminal)
+
+Use **before** Enter-driven attack, or flash when the first scoreboard appears.
+
+| On screen | Means |
+| --- | --- |
+| `→ SEND` / `← RECV` | Wire request / response |
+| `LOOT` | Data we extracted this run |
+| `✗ APP HOLE` | App/demo weakness (read the kind tag) |
+| `◇ PLATFORM` | Edge/runtime blocked a **probe** — not “API is secure” |
+| `✓ OK` | This probe did not fire / expected fail-closed |
+| Scoreboard critical / high / medium / info | **Demo severity** (script authors) — **not CVSS**, not a scanner product |
+| loot users / orders / secret | Evidence counters in `stolen` state |
+| `(framework-gap)` | Express does not ship this control |
+| `(misconfig)` | **Our** app/env weakened a safer default |
+| `(app-code)` | Vulnerable route logic you wrote |
+
+**Spoken (10s):**  
+> “Severities are our labels for the talk. Loot is what we actually stole. Kind tags say whose fault.”
 
 ---
 
