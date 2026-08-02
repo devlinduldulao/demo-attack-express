@@ -1458,10 +1458,11 @@ async function phaseUnauthDataTheft() {
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Function: phaseAccountEnumeration
  * Endpoints:
- *   - enum-missing   POST /api/auth/login  (unknown email)
- *   - enum-wrong-pw  POST /api/auth/login  (alice@example.com, wrong password)
+ *   - user-enum-missing   POST /api/auth/login  (unknown email)
+ *   - user-enum-wrong-pw  POST /api/auth/login  (alice@example.com, wrong password)
  *
  * Different error strings for missing user vs wrong password ⇒ free user discovery.
+ * (Wire labels use "user-enum" = user enumeration — not a programming enum.)
  */
 async function phaseAccountEnumeration() {
   step("Account enumeration via login error messages");
@@ -1469,11 +1470,11 @@ async function phaseAccountEnumeration() {
   narrate("Compare login errors for missing email vs wrong password…");
   const missing = await http("POST", "/api/auth/login", {
     body: { email: "definitely-not-registered@example.com", password: "x" },
-    label: "enum-missing",
+    label: "user-enum-missing",
   });
   const wrong = await http("POST", "/api/auth/login", {
     body: { email: "alice@example.com", password: "not-the-password" },
-    label: "enum-wrong-pw",
+    label: "user-enum-wrong-pw",
   });
   const e1 = missing.json?.error || missing.text;
   const e2 = wrong.json?.error || wrong.text;
