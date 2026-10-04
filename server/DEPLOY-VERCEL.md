@@ -68,9 +68,9 @@ From **repository root**:
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if needed
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 # if DEMO_GATE_TOKEN is set on the project:
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --gate=YOUR_TOKEN
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --gate=YOUR_TOKEN
 ```
 
 `--drama` waits for **Enter** between phases. After the talk: remove the project or leave the gate on — [`../TEARDOWN.md`](../TEARDOWN.md).

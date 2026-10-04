@@ -83,7 +83,7 @@ cd server
 npm install
 npm start
 # other terminal (repo root):
-node attack/attack.mjs http://localhost:4000 --reset --skip-slow
+node --no-warnings attack/attack.mjs http://localhost:4000 --reset --skip-slow
 ```
 
 Optional codemods (upstream; we already match v5 style):

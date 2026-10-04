@@ -91,8 +91,8 @@ Same `server/app.js` on both clouds. **CF/Vercel do not invent the three misconf
 Re-run for a fresh terminal transcript (logs are local / gitignored):
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json *> ATTACK-RUN-CLOUDFLARE-LATEST.log
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json *> ATTACK-RUN-VERCEL-LATEST.log
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json *> ATTACK-RUN-CLOUDFLARE-LATEST.log
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --reset --json *> ATTACK-RUN-VERCEL-LATEST.log
 ```
 
 Every finding line should show `(misconfig)`, `(framework-gap)`, or `(app-code)`; platform blocks show `◇ PLATFORM`.

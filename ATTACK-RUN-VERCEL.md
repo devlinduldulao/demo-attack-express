@@ -5,14 +5,14 @@
 **Runtime:** `vercel-serverless` (from `/api/debug/config`)  
 **Deployed:** 2026-08-01 — local `vercel --prod --yes`  
 **Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
-**Attack:** 2026-08-01 · `node attack/attack.mjs URL --reset --json`  
+**Attack:** 2026-08-01 · `node --no-warnings attack/attack.mjs URL --reset --json`  
 (no `--internal`)
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
 # stage pacing:
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 ```
 
 **Result:** `DEMO RESULT: API PWNED — 10 critical findings · 70 requests · 10.1s`  

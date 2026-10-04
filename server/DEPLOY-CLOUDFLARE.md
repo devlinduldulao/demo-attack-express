@@ -57,7 +57,7 @@ curl http://127.0.0.1:8787/api/health
 # expect: "express":"5"
 
 # from repo root:
-node attack/attack.mjs http://127.0.0.1:8787 --drama
+node --no-warnings attack/attack.mjs http://127.0.0.1:8787 --drama
 ```
 
 ## Gate public deploys (recommended)
@@ -72,7 +72,7 @@ npx wrangler deploy
 Attack with the same token:
 
 ```bash
-node attack/attack.mjs https://vaultpay-api.<you>.workers.dev --drama --reset --gate=YOUR_TOKEN
+node --no-warnings attack/attack.mjs https://vaultpay-api.<you>.workers.dev --drama --reset --gate=YOUR_TOKEN
 ```
 
 After the talk: delete the Worker or leave the gate on — see [`../TEARDOWN.md`](../TEARDOWN.md).
@@ -82,12 +82,12 @@ After the talk: delete the Worker or leave the gate on — see [`../TEARDOWN.md`
 From the **repository root**:
 
 ```bash
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset
 # if gated:
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset --gate=YOUR_TOKEN
+node --no-warnings attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --reset --gate=YOUR_TOKEN
 
 # Free tier / softer load:
-node attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --skip-flood --skip-slow
+node --no-warnings attack/attack.mjs https://vaultpay-api.<your-subdomain>.workers.dev --drama --skip-flood --skip-slow
 ```
 
 `--drama` waits for **Enter** between phases (talk control).

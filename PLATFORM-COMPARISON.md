@@ -99,6 +99,6 @@ cd server
 npx wrangler deploy
 npx vercel --prod --yes
 cd ..
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 ```

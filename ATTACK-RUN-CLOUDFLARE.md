@@ -5,14 +5,14 @@
 **Deployed:** 2026-08-01 — local `wrangler deploy`  
 **Worker Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
 **Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
-**Attack:** 2026-08-01 · `node attack/attack.mjs URL --reset --json`  
+**Attack:** 2026-08-01 · `node --no-warnings attack/attack.mjs URL --reset --json`  
 (no `--internal`; no prototype-pollution phase in current attacker)
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
 # stage pacing:
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
 ```
 
 **Result:** `DEMO RESULT: API PWNED — 9 critical findings · 71 requests · 4.3s`  

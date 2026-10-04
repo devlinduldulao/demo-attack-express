@@ -131,8 +131,8 @@ Misconfig detail (cloud hosts still show these — same app.js):
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json *> ATTACK-RUN-CLOUDFLARE-LATEST.log
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset --json *> ATTACK-RUN-VERCEL-LATEST.log
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json *> ATTACK-RUN-CLOUDFLARE-LATEST.log
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --reset --json *> ATTACK-RUN-VERCEL-LATEST.log
 ```
 
 Studies that already document the three misconfigs on each cloud:  
@@ -184,7 +184,7 @@ Optional: show a login that returns a Bearer token — “Login works. Feels fin
 ## 0:45–3:30 — Attack
 
 ```powershell
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
 # if gated: add --gate=talk-day-secret
 ```
 
@@ -255,9 +255,9 @@ If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 
 ```powershell
 # Prefer Vercel or CF — both full climax (9–10 critical, forge YES on latest run)
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --projector --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --projector --reset
 # or CF:
-# node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset
+# node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset
 # if gated: add --gate=YOUR_TOKEN
 ```
 
@@ -352,7 +352,7 @@ This is the **original** material most “JWT isn’t enough” talks lack. Give
 ```powershell
 # Cloudflare study (already on screen or open ATTACK-RUN-CLOUDFLARE.md)
 # Vercel (latest: 10 critical · forge YES):
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --skip-flood
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --skip-flood
 ```
 
 **Latest engagement (2026-08-01):** CF **9** critical / 4.3s · Vercel **10** critical / 10.1s · both forged admin. (+1 on Vercel = self-SSRF of debug secret.)
@@ -422,7 +422,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 ## Hostile / 2-minute backup
 
 1. Health → express 5  
-2. `node attack/attack.mjs URL` without `--drama`
+2. `node --no-warnings attack/attack.mjs URL` without `--drama`
 3. Jump to LOOT users + JWT_SECRET + DEMO RESULT  
 4. Optional: scroll to **REMEDIATION** footer (fix map by kind — not during LOOT)  
 5. One line: Cloudflare ≠ authz; JWT ≠ security model  

@@ -138,9 +138,9 @@ They are a **30-second close**, not a running commentary during the attack.
 3. Terminal (stage: Enter between phases):
 
    ```bash
-   node attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev --drama --reset
+   node --no-warnings attack/attack.mjs https://vaultpay-api.YOUR-SUBDOMAIN.workers.dev --drama --reset
    # if DEMO_GATE_TOKEN is set on the server:
-   node attack/attack.mjs https://… --drama --reset --gate=talk-day-secret
+   node --no-warnings attack/attack.mjs https://… --drama --reset --gate=talk-day-secret
    ```
 
 4. Watch unauth probes first, then PII theft, then authz collapse and forged admin JWT.
@@ -161,7 +161,7 @@ npm run demo
 # Or two terminals
 cd server && npm start
 # other terminal, repo root:
-node attack/attack.mjs http://localhost:4000 --reset --projector
+node --no-warnings attack/attack.mjs http://localhost:4000 --reset --projector
 ```
 
 | Email | Password | Role |
@@ -237,8 +237,8 @@ Vercel / Azure paths, Zscaler TLS notes, talk-day checklist.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
-node attack/attack.mjs https://vaultpay-api.vercel.app
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ## Attack script console output

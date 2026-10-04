@@ -111,12 +111,12 @@ unless the target has `DEMO_GATE_TOKEN` enabled.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 ```bash
 export NODE_TLS_REJECT_UNAUTHORIZED=0
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 **Clean network:** leave that variable **unset**.
@@ -130,7 +130,7 @@ Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
 ## 2. Attack script CLI
 
 ```text
-node attack/attack.mjs <API_BASE_URL> [flags]
+node --no-warnings attack/attack.mjs <API_BASE_URL> [flags]
 ```
 
 | Flag | Meaning |
@@ -151,9 +151,9 @@ node attack/attack.mjs <API_BASE_URL> [flags]
 
 ```powershell
 # Stage: Enter between phases
-node attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
 # Fast continuous (no Enter)
-node attack/attack.mjs https://vaultpay-api.vercel.app --reset --skip-flood
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --reset --skip-flood
 # Local one-shot
 npm run demo
 ```
@@ -169,12 +169,12 @@ Raw terminal captures (`ATTACK-RUN-*-LATEST.log`) are **gitignored** local artif
 **Examples** (from repo root):
 
 ```powershell
-node attack/attack.mjs http://localhost:4000 --drama --reset
-node attack/attack.mjs http://127.0.0.1:8787 --drama
+node --no-warnings attack/attack.mjs http://localhost:4000 --drama --reset
+node --no-warnings attack/attack.mjs http://127.0.0.1:8787 --drama
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # only if TLS intercept
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset --gate=talk-day-secret
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset --gate=talk-day-secret
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 
 Root helpers (if present):
@@ -212,7 +212,7 @@ Invoke-RestMethod http://localhost:4000/api/health
 
 ```powershell
 # Repo root
-node attack/attack.mjs http://localhost:4000
+node --no-warnings attack/attack.mjs http://localhost:4000
 ```
 
 **Expect:** `DEMO RESULT: API PWNED` (~10 critical on localhost, including SSRF self-fetch).
@@ -238,7 +238,7 @@ npm run dev:cf
 
 ```powershell
 # Repo root
-node attack/attack.mjs http://127.0.0.1:8787
+node --no-warnings attack/attack.mjs http://127.0.0.1:8787
 ```
 
 No TLS bypass needed (HTTP).
@@ -280,14 +280,14 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 # ONLY if Node certificate errors (Zscaler / corporate MITM):
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
 ```
 
 Soft run:
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood
 ```
 
 ### C5 — Cloudflare vs local Node
@@ -342,7 +342,7 @@ Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if needed
-node attack/attack.mjs https://vaultpay-api.vercel.app
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ### D5 — What differs from Cloudflare
@@ -376,7 +376,7 @@ Deploy **`server/`** only.
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # if cert errors
-node attack/attack.mjs https://YOUR-APP.azurewebsites.net
+node --no-warnings attack/attack.mjs https://YOUR-APP.azurewebsites.net
 ```
 
 ---
@@ -439,8 +439,8 @@ Invoke-RestMethod https://vaultpay-api.devlinduldulao.workers.dev/api/health
 Invoke-RestMethod https://vaultpay-api.vercel.app/api/health
 
 # 3) Attack both (optional: one is enough on stage)
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
-node attack/attack.mjs https://vaultpay-api.vercel.app
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 
 # 4) Show PLATFORM-COMPARISON.md or CLOUDFLARE-VS-APP-SECURITY.md
 # 5) End on: DEMO RESULT: API PWNED
@@ -482,8 +482,8 @@ npm start
 
 ```powershell
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-node attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
-node attack/attack.mjs https://vaultpay-api.vercel.app
+node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev
+node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 ```
 
 ### Clear TLS bypass after the talk

@@ -77,7 +77,7 @@ vercel --prod --yes
 ```powershell
 $env:DEMO_GATE_TOKEN = "talk-day-secret"
 # or:
-node attack/attack.mjs https://vaultpay-api.example.workers.dev --drama --reset --gate=talk-day-secret
+node --no-warnings attack/attack.mjs https://vaultpay-api.example.workers.dev --drama --reset --gate=talk-day-secret
 ```
 
 ---
