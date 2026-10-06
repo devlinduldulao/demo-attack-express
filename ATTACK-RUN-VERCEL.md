@@ -1,5 +1,13 @@
 # Attack run study — Vercel (Express 5)
 
+> Historical capture (2026-08-01), not current expected output. The later evidence
+> audit corrected traversal to CWE-22, redirect to CWE-601, HTML sink to CWE-79,
+> collection/settings access to API5, and authentication throttling to API2.
+> CORS/headers are posture observations; failed metadata probes are not findings.
+> Self-fetch of a public URL does not establish internal-only reachability.
+> Old severity totals and titles below are preserved as history, not endorsed as
+> current classifications. Re-run to obtain current evidence and counts; see README.md.
+
 **Target:** `https://vaultpay-api.vercel.app`  
 **Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)  
 **Runtime:** `vercel-serverless` (from `/api/debug/config`)  
@@ -20,7 +28,7 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --r
 **By kind:** `app-code: 16` · `framework-gap: 4` · `misconfig: 3`  
 **OWASP API:** API1, API2, API3, API4, API5, API7, API8  
 **Loot:** 4 users · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
-**`alg:none`:** rejected (401) — jsonwebtoken v9 pins HS256 for string secrets  
+**`alg:none`:** rejected (401) — jsonwebtoken v9 defaults to HS256/384/512 for string secrets
 
 Raw log (local, gitignored): `ATTACK-RUN-VERCEL-LATEST.log`  
 Re-captured after **Whose fault?** report landed in `attack/attack.mjs` — search the log for `Whose fault?` / `Misconfig detail` (same three misconfigs as CF).  

@@ -1,5 +1,12 @@
 # Platform comparison — same Express 5 app
 
+> Historical comparison from 2026-08-01. The counts, ratings, and terminal excerpts
+> below predate the evidence audit and are not current expected output. In current
+> runs, health CORS/headers are INFO posture observations, failed metadata fetches
+> do not produce findings, and path traversal/open redirect/HTML injection use CWE
+> labels. Self-fetch does not prove internal-only access. See [README.md](README.md) for current
+> classifications; capture fresh runs before presenting new totals.
+
 **One vulnerable API** (`server/app.js`), three runtimes:
 
 | Runtime | Production URL | Deploy |
@@ -8,7 +15,7 @@
 | **Vercel serverless** | `https://vaultpay-api.vercel.app` | `cd server && vercel --prod --yes` |
 | **Node long-running** | `http://localhost:4000` | `cd server && npm start` |
 
-**Engagement date:** 2026-08-01 (current attacker: CORS, IMDS-class, no pollution phase, `--drama` optional).  
+**Engagement date:** 2026-08-01 (attacker at capture time: CORS, IMDS-class, no pollution phase, `--drama` optional).
 **CF Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
 **Attacker:** `attack/attack.mjs --reset --json`
 

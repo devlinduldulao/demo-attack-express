@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Intentionally vulnerable Express 5 + JWT demo API and black-box attack script. Educational only.",
   "scripts": {
+    "test": "node --test scripts/demo.test.mjs",
     "server": "npm --prefix server start",
     "server:dev": "npm --prefix server run dev",
     "server:cf": "npm --prefix server run dev:cf",

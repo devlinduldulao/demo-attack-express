@@ -76,9 +76,13 @@ Every recorded finding carries a `kind`. The engagement report also prints a **W
 | `app-code` | Vulnerable route / app logic (not a framework default) | Same hole on every host |
 | `◇ PLATFORM` | Edge/runtime blocked a **probe** | Only class that differs by cloud (e.g. CF 1042) |
 
-OWASP API Top 10 tags (`API1` BOLA, `API2` broken auth, `API3` BOPLA, `API4`
+OWASP API Security Top 10 **2023** tags (`API1` BOLA, `API2` broken auth, `API3` BOPLA, `API4`
 unrestricted resource, `API5` BFLA, `API7` SSRF, `API8` misconfig/security)
-appear on findings so the security-literate part of the room maps the chain.
+are teaching mappings, not OWASP-assigned severity ratings. Specific weaknesses
+without a clean API category use CWE tags: traversal `CWE-22`, open redirect
+`CWE-601`, and XSS sink `CWE-79`.
+
+Official definitions: [OWASP API Security Top 10 2023](https://api-security.owasp.org/editions/2023/en/0x11-t10/).
 
 ---
 
@@ -243,14 +247,15 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 
 ## Attack script console output
 
-Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
+Wire logging is **on by default**. Findings show demo-author severity, API category
+with its edition (when applicable), CWE (when applicable), and kind.
 
 ```text
   → SEND  #12  GET /api/users
   ← RECV  #12  200  18ms
   ✗ APP HOLE       Returned 4 full accounts without auth
    LOOT  #1 alice@example.com  ...
-  [CRITICAL] [API1] (app-code) Unauthenticated user dump
+  [CRITICAL] [API5:2023] (app-code) Unauthenticated user dump
 ```
 
 | Flag | Use |
@@ -267,6 +272,21 @@ Wire logging is **on by default**. Findings show severity, OWASP id, and kind.
 | `--json` | Machine-readable findings at end |
 
 End of run prints **ENGAGEMENT REPORT → DEMO RESULT → REMEDIATION** (one quick-fix map by kind). Fixes are **not** printed mid-phase so LOOT stays stage-clean.
+
+The scoreboard is cumulative across the current process and counts finding
+records, not phases or deduplicated root causes. Multiple probes can describe the
+same underlying weakness; the redirect-hop probe adds evidence without another
+record. Ratings are not CVSS scores or OWASP severity assignments.
+
+Evidence limits: wildcard CORS on public health data does not prove victim-session
+exposure; the body probe proves approximately 1.5 MiB acceptance, not the configured
+maximum; a failed metadata fetch does not prove metadata reachability. Local SSRF
+credentials are fabricated, and traversal reads a virtual filesystem. A recovered
+backup key is not assumed active until token acceptance is tested. Admin and
+cross-user access are tested before role escalation; admin fallback is not scored
+as non-admin access. Forged admin success requires the expected returned identity.
+
+Run `npm test` after `npm run install:all` for local output regression checks.
 
 ---
 

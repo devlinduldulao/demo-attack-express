@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SSRF stand-in: an "internal service" the API can reach and the client cannot.
+ * SSRF stand-in: a separate loopback service reachable by the local API and client.
  *
  * Why this exists
  * ---------------
@@ -19,12 +19,13 @@
  * a stand-in for a cloud metadata document. Say that out loud on stage:
  *
  *   "This stands in for the cloud metadata service. On a real EC2 box this URL
- *    hands you the instance role's IAM credentials."
+ *    can expose an attached instance role's credentials if IMDS and network
+ *    configuration permit it. This local document is fabricated."
  *
  * Routes
  *   GET /health                       liveness (used to prove attacker reach)
  *   GET /latest/meta-data/...         IMDS-shaped fake credentials
- *   GET /redirect?to=<path>           302 → internal path (redirect-hop bypass)
+ *   GET /redirect?to=<path>           302 -> stand-in path (redirect following)
  *
  * Everything here is fabricated. There are no real credentials in this file.
  *
@@ -62,9 +63,7 @@ const server = createServer((req, res) => {
     return send(200, { ok: true, service: "internal-metadata-standin" });
   }
 
-  // Open redirector: lets the attacker hand the proxy a URL that looks fine on
-  // hop 1 and lands somewhere internal on hop 2. `fetch(..., {redirect:"follow"})`
-  // will chase it, which is exactly the bypass a first-URL allowlist misses.
+  // Redirect following within the same service; no allowlist bypass is demonstrated.
   if (url.pathname === "/redirect") {
     const to = url.searchParams.get("to") || ROLE_PATH;
     const target = to.startsWith("http") ? to : `http://${HOST}:${PORT}${to}`;

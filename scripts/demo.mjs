@@ -8,7 +8,7 @@
  *   5. tear both down, exit with the attack's exit code
  *
  * The internal service is what makes the SSRF pivot real locally: the API can
- * reach it, the attacker cannot reach it directly through the API's origin.
+ * reach it. The local attacker can reach it too; network isolation is not modeled.
  * See scripts/internal-service.mjs.
  *
  * Usage (repo root):

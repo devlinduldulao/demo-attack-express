@@ -56,6 +56,8 @@ Use **before** Enter-driven attack, or flash when the first scoreboard appears.
 | `◇ PLATFORM` | Edge/runtime blocked a **probe** — not “API is secure” |
 | `✓ OK` | This probe did not fire / expected fail-closed |
 | Scoreboard critical / high / medium / info | **Demo severity** (script authors) — **not CVSS**, not a scanner product |
+| Cumulative finding records | Total so far this process, not phase scores or unique root causes |
+| `[API1:2023]` / `[CWE-22]` | 2023 API category / specific weakness; not interchangeable taxonomies |
 | loot users / orders / secret | Evidence counters in `stolen` state |
 | `(framework-gap)` | Express does not ship this control |
 | `(misconfig)` | **Our** app/env weakened a safer default |
@@ -103,7 +105,9 @@ Three findings that used to overstate Express defaults (fixed in the script) —
 
 After the attack finishes, the script prints a **Whose fault?** block (and a **Misconfig detail** list). Use it on stage — do not invent blame.
 
-**What you should see (counts from the 2026-08-01 cloud engagements; re-run if the app changes):**
+**Historical output from the 2026-08-01 cloud engagements, not current expected counts.**
+The evidence audit changed categories, wording, severity, and success checks.
+The excerpt below preserves the old capture; use the current phase map and a fresh run for narration.
 
 ```text
 By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
@@ -276,24 +280,24 @@ npm run demo:full     # full flood + internal SSRF stand-in
 
 | Phase (approx) | OWASP | Line |
 | --- | --- | --- |
-| Missing headers / `X-Powered-By` | API8 | “Framework gap — zero secure headers out of the box.” |
-| CORS `*` | API8 | “**misconfig** — we added open CORS; Express ships none.” |
-| Oversized body | API4 | “**misconfig** — Express `json()` is 100 kb; we raised it.” |
-| Login flood, no 429 | API4 | “No rate limit primitive in Express.” |
-| Path traversal → secret | API1 | “File endpoint with no jail.” |
-| Open redirect | API8 | “`res.redirect(user input)`.” |
+| Missing headers / `X-Powered-By` | API8 / untagged fingerprint | “Health-response posture; header applicability varies.” |
+| CORS `*` | API8 (posture only) | “Non-credentialed reads; no victim-session theft proved.” |
+| Oversized body | API4 | “Login parsed about 1.5 MiB; source defaults to 50mb, not a measured maximum.” |
+| Login flood, no 429 | API2 (also relevant to API4) | “No throttle observed in this bounded wrong-password batch.” |
+| Path traversal → secret | CWE-22 | “Virtual file endpoint with no containment; backup key may be stale.” |
+| Open redirect | CWE-601 | “Unvalidated redirect destination.” |
 | Open proxy / SSRF | API7 | “`fetch(user URL)`. CF may 1042 self-fetch; open proxy still real.” |
-| IMDS-class URL | API7 | “No egress allowlist — class matters even when cloud has no IMDS.” |
-| Stack + HTML echo | API8 | “Stack = misconfig; XSS sink = app code.” |
-| Slow handler | API4 | “No request-timeout middleware.” |
-| User dump / IDOR / debug | API1, API3, API8 | “JWT claim — no password.” |
+| IMDS-class URL | API7 only when supported by evidence | “Failures do not prove reachability; stand-in credentials are fake.” |
+| Stack + HTML echo | API8 / CWE-79 | “Stack disclosure / HTML injection sink, not demonstrated browser execution.” |
+| Slow handler | API4 | “Client-selected delay; three seconds does not prove no longer deadline.” |
+| User dump / IDOR / debug / search | API5 / API1 / API8 / API3 | “Function access / object access / debug disclosure / sensitive properties.” |
 | Account enum | API2 | “Different login errors.” |
-| Settings PUT | API3 | “Unauth state change.” |
+| Settings PUT | API5 / CWE-915 | “Unauthorized global-settings write; privileged-property impact not established.” |
 | BOLA orders | API1 | “Authn without authz.” |
 | Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
-| Admin stats | API5 | “requireAuth ≠ requireRole (BFLA).” |
+| Admin stats | API5 | “Non-admin function access tested before escalation.” |
 | **`alg:none` — rejected** | API2 | “Library saved you — not app design.” |
-| Forged JWT | API2 | “Secret leak → identity forge.” |
+| Forged JWT | API2 | “Compromised key; count success only after the intended admin identity is returned.” |
 
 **Scoreboard tension:** call out critical count rising. Pause hard after first LOOT of cards and after forged admin.
 

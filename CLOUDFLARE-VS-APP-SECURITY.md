@@ -1,5 +1,14 @@
 # Edge platform defaults ≠ API security
 
+> Historical cloud-run analysis from 2026-08-01. Its counts, severity tables, and
+> console excerpts predate the evidence audit and are not current expected output.
+> Current output treats public-health CORS and missing headers as INFO posture
+> observations, reports failed metadata requests as inconclusive, and does not
+> infer an internal-only pivot from public self-fetch. A 1.5 MiB body or 40 login
+> attempts does not establish the maximum body size or absence of all throttles.
+> API tags use OWASP API Security Top 10 2023; severity is demo-author-rated.
+> See [README.md](README.md) for current evidence limits and classifications.
+
 **Show this on screen after the attack run.**  
 Same intentional **Express 5** VaultPay app on two free clouds:
 
