@@ -163,7 +163,7 @@ ${c.red}${c.bold}╔════════════════════
   console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
   console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
   console.log(
-    `${c.bold}Thesis${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
+    `${c.bold}Claim${c.reset}   JWT is not a security model. Frameworks give you almost nothing — and nothing is not a security model.`
   );
   console.log(
     `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  slow=${skipSlow ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
@@ -1382,11 +1382,11 @@ async function phaseSlowTimeout() {
  *   - debug-leak   GET /api/debug/config   → may set stolen.jwtSecret
  *   - pii-search   GET /api/search?q=oslo
  *
- * JWT thesis beat: full PII with no password and no token. Fills stolen.users.
+ * JWT claim beat: full PII with no password and no token. Fills stolen.users.
  */
 async function phaseUnauthDataTheft() {
   step("Unauthenticated data theft (users / IDOR / search / debug)");
-  intent("JWT thesis: no password, no token — full PII. Authn was never applied.");
+  intent("JWT claim: no password, no token — full PII. Authn was never applied.");
 
   narrate("Dumping /api/users with zero Authorization header…");
   const usersRes = await http("GET", "/api/users", { label: "user-dump" });
@@ -1889,7 +1889,7 @@ ${c.bold}${c.green}╔═══════════════════�
 
   console.log(
     `  ${c.yellow}Remember:${c.reset} defaults and middleware shrink footguns;` +
-      ` ownership and path jails are still your code.`
+    ` ownership and path jails are still your code.`
   );
   console.log(
     `  ${c.dim}Deeper notes: README.md · TALK.md · CLOUDFLARE-VS-APP-SECURITY.md · TEARDOWN.md${c.reset}`
@@ -1941,15 +1941,15 @@ ${c.bold}${c.red}╔════════════════════
   console.log(`\n  ${c.bold}What the console just proved:${c.reset}`);
   console.log(
     `    ${c.red}Most damage needed no password. JWT only gated a few routes.` +
-      ` Authn ≠ authz. Edge WAF ≠ API authorization.${c.reset}`
+    ` Authn ≠ authz. Edge WAF ≠ API authorization.${c.reset}`
   );
   console.log(
-    `    ${c.yellow}Thesis: your framework gives you almost nothing — and nothing is not a security model.${c.reset}`
+    `    ${c.yellow}Claim: your framework gives you almost nothing — and nothing is not a security model.${c.reset}`
   );
   console.log(
     `    ${c.dim}kind legend: framework-gap = Express has no control;` +
-      ` misconfig = demo app/env weakened a safer default (not the cloud platform);` +
-      ` app-code = vulnerable route / app logic you wrote.${c.reset}`
+    ` misconfig = demo app/env weakened a safer default (not the cloud platform);` +
+    ` app-code = vulnerable route / app logic you wrote.${c.reset}`
   );
 
   const misconfigs = stolen.findings.filter((f) => f.kind === "misconfig");
@@ -1959,7 +1959,7 @@ ${c.bold}${c.red}╔════════════════════
   console.log(`\n  ${c.bold}Whose fault? (read the kind tag on every finding):${c.reset}`);
   console.log(
     `    ${c.yellow}(misconfig)     ${c.reset}${misconfigs.length} — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).` +
-      ` Not Express defaults. Not Cloudflare/Vercel inventing them.`
+    ` Not Express defaults. Not Cloudflare/Vercel inventing them.`
   );
   console.log(
     `    ${c.blue}(framework-gap) ${c.reset}${gaps.length} — Express does not ship the control (headers, rate limit, timeout, …).`

@@ -4,7 +4,7 @@ A **live talk demo** that shows why “Express + JWT + cloud deploy” is not a
 security model. There is **no frontend**. The demo is a vulnerable **Express 5
 API** plus a black-box **attack script** that hits the API URL directly.
 
-**Thesis (defend end-to-end):**
+**Claim (defend end-to-end):**
 
 > JWT is not the only thing you need. Your framework gives you almost nothing —
 > and nothing is not a security model.
@@ -47,7 +47,7 @@ skeptic in row 3 cannot sink the talk.
 
 ## Will this work in a real talk?
 
-**Yes — for the JWT thesis especially.** Qualified yes for the “frameworks give
+**Yes — for the JWT claim especially.** Qualified yes for the “frameworks give
 you almost nothing” framing if you use the honest labels.
 
 | Claim | Reality |

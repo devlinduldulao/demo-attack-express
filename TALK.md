@@ -7,15 +7,15 @@ Two scripts live here:
 | **[5 minutes](#5-minute-lightning)** | Lightning / hostile room / backup |
 | **[30–45 minutes](#30--45-minute-conference)** | Conference default — **this is the real talk** |
 
-**Thesis you can defend end-to-end:**
+**Claim you can defend end-to-end:**
 
 > JWT is not a security model. Your framework gives you almost nothing —
 > and nothing is not a security model.
 
-**Not** the thesis: “Express is insecure by default on body limits / CORS / stacks.”
+**Not** the claim: “Express is insecure by default on body limits / CORS / stacks.”
 Those three are **misconfig** in *this* demo (see [Honest labels](#honest-labels)).
 
-**Also not the thesis:** “Cloudflare / Vercel defaults are open CORS and 50 mb bodies.”
+**Also not the claim:** “Cloudflare / Vercel defaults are open CORS and 50 mb bodies.”
 Those ship in **our** `app.js` / `BODY_LIMIT` on every host (see [Terminal: whose fault](#terminal-whose-fault-on-cloud-runs)).
 
 ---
@@ -26,7 +26,7 @@ Those ship in **our** `app.js` / `BODY_LIMIT` on every host (see [Terminal: whos
 
 | # | When | Slide title | On screen (keep sparse) | Say in one line |
 | --- | --- | --- | --- | --- |
-| 1 | 0:00 | Title / thesis | *JWT ≠ secure API* · *nothing is not a security model* | “Tutorial stack + cloud ≠ security model.” |
+| 1 | 0:00 | Title / claim | *JWT ≠ secure API* · *nothing is not a security model* | “Tutorial stack + cloud ≠ security model.” |
 | 2 | 0:02 | What we’re attacking | Black-box API · Express 5 + JWT · no SPA · live URL | “No frontend to hack. Hit the API URL.” |
 | 3 | ~0:04 | **How to read the terminal** | See [Legend slide](#legend-slide-how-to-read-the-terminal) below | “Demo scoring + loot — not CVSS.” |
 | 4 | 0:05–20 | *(leave up or black)* | **Terminal** is primary | `--drama --projector --reset` |
@@ -223,7 +223,7 @@ Optional 30s product note (do **not** pitch during the run): secure-default fram
 
 | Block | Time | Goal |
 | --- | --- | --- |
-| Frame + JWT myth | 0–5 min | Thesis on the wall |
+| Frame + JWT myth | 0–5 min | Claim on the wall |
 | Live attack (CF or local) | 5–20 min | Scoreboard; Enter; **forgery is last phase** |
 | What is / isn’t a default | 20–25 min | Disarm the skeptic (misconfig vs real gaps) |
 | **Same code, two clouds** | 25–38 min | Differentiator — expand this |
@@ -241,7 +241,7 @@ If the slot is **~30 min**, drop one cloud. If **5 min**, skip clouds.
 - Deployed: Cloudflare / Vercel free tier
 - Claim: “We have authentication”
 - Question: is the **API** secure?
-- Thesis line (yellow): *nothing is not a security model*
+- Claim line (yellow): *nothing is not a security model*
 
 **Demo:** health + optional login. Do **not** open a SPA — there isn’t one.
 
@@ -286,7 +286,7 @@ npm run demo:full     # full flood + internal SSRF stand-in
 | IMDS-class URL | API7 | “No egress allowlist — class matters even when cloud has no IMDS.” |
 | Stack + HTML echo | API8 | “Stack = misconfig; XSS sink = app code.” |
 | Slow handler | API4 | “No request-timeout middleware.” |
-| User dump / IDOR / debug | API1, API3, API8 | “JWT thesis — no password.” |
+| User dump / IDOR / debug | API1, API3, API8 | “JWT claim — no password.” |
 | Account enum | API2 | “Different login errors.” |
 | Settings PUT | API3 | “Unauth state change.” |
 | BOLA orders | API1 | “Authn without authz.” |
@@ -337,7 +337,7 @@ List (framework-gap, undisputable):
 - No response schema / mass-assign guard  
 - No SSRF / safe-redirect helper  
 
-> “JWT thesis stands on its own: unauth dump, IDOR, BOLA, mass-assign, BFLA, forged token. Nobody argues with that chain.”
+> “JWT claim stands on its own: unauth dump, IDOR, BOLA, mass-assign, BFLA, forged token. Nobody argues with that chain.”
 
 **If the report is still on screen:** scroll to **Whose fault?** and read the three misconfig titles out loud once (see [Terminal: whose fault](#terminal-whose-fault-on-cloud-runs)).
 
@@ -409,7 +409,7 @@ Do **not** open a 17-row feature matrix. Link README later.
 
 | Question | Answer |
 | --- | --- |
-| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `app-code`. JWT/BOLA/BFLA chain is the thesis. |
+| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `app-code`. JWT/BOLA/BFLA chain is the claim. |
 | “What is BOLA / IDOR?” | Same class: object id trusted without ownership. IDOR = classic name; BOLA = OWASP API1. Alice’s JWT reading Bob’s orders. |
 | “Express 5 fixed security?” | No — v5 is API cleanup, not a security model. |
 | “Would helmet / rate-limit fix it?” | Partly transport; not BOLA/ownership. |
@@ -455,4 +455,4 @@ Not slides — optional handout / Q&A / “why this talk exists.”
 
 | Source | Why it fits |
 | --- | --- |
-| [Secure defaults beat secure training](https://www.devsecstation.com/2602204/episodes/19503769-secure-defaults-beat-secure-training) (DevSecStation / Tanya Janca) | Core idea: most holes aren’t “developers don’t know” — the **easy path is insecure**. Training relies on memory and willpower; **defaults shape behavior**. Matches this demo’s thesis: incomplete setup feels normal; JWT alone is not a security model.  use after the attack, not during the run. |
+| [Secure defaults beat secure training](https://www.devsecstation.com/2602204/episodes/19503769-secure-defaults-beat-secure-training) (DevSecStation / Tanya Janca) | Core idea: most holes aren’t “developers don’t know” — the **easy path is insecure**. Training relies on memory and willpower; **defaults shape behavior**. Matches this demo’s claim: incomplete setup feels normal; JWT alone is not a security model.  use after the attack, not during the run. |
