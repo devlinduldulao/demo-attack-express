@@ -40,8 +40,8 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 | Question | Answer |
 | --- | --- |
 | Current code on CF? | **Yes** (version above) |
-| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / secret / traversal? | **CRITICAL** |
-| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge? | **CRITICAL** — full climax |
+| Unauth PII (Personally Identifiable Information) (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / secret / traversal? | **CRITICAL** |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) / forge? | **CRITICAL** — full climax |
 | Self-SSRF open proxy? | **Blocked** CF **1042** → external open proxy still **HIGH** |
 | IMDS-class URL? | No real IMDS · **HIGH** no egress allowlist + `◇ PLATFORM` |
 | CORS `*`? | **HIGH** misconfig |
@@ -54,9 +54,9 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 | --- | --- | --- |
 | Path traversal reads server secret files | app-code | API1 |
 | Unauthenticated user dump | app-code | API1 |
-| IDOR (Insecure Direct Object Reference) on `/api/users/:id` without auth | app-code | API1 |
+| IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) on `/api/users/:id` without auth | app-code | API1 |
 | Debug endpoint leaks JWT signing secret | app-code | API8 |
-| BOLA (Broken Object Level Authorization) on `/api/orders` | app-code | API1 |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) on `/api/orders` | app-code | API1 |
 | Mass assignment privilege escalation | app-code | API3 |
 | Cross-user write without ownership check | app-code | API1 |
 | Admin route checks login only, not role | app-code | API5 |
@@ -75,7 +75,7 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 | Open proxy: arbitrary external URLs | app-code | after CF 1042 self-block |
 | Open proxy no egress allowlist (IMDS-class) | app-code | app did not refuse link-local URL |
 | HTML echo XSS class | app-code | |
-| Unauthenticated PII (Personally Identifiable Information) search | app-code | |
+| Unauthenticated PII (Personally Identifiable Information) (Personally Identifiable Information) search | app-code | |
 | Unauthenticated settings write | app-code | |
 
 **MEDIUM:** missing secure headers, stack leak misconfig, no app request timeout, login enumeration  
@@ -152,7 +152,7 @@ See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-
 
 ## 6. Phase order (current attacker)
 
-Reset → recon → headers → CORS → body → flood → traversal → redirect → SSRF → stack/echo → slow → unauth theft → enum → settings → raw TCP (skip HTTPS) → **login / BOLA (Broken Object Level Authorization) / mass-assign / admin / alg:none / forge**
+Reset → recon → headers → CORS → body → flood → traversal → redirect → SSRF → stack/echo → slow → unauth theft → enum → settings → raw TCP (skip HTTPS) → **login / BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / mass-assign / admin / alg:none / forge**
 
 With `--drama`, each phase waits for **Enter**.
 
@@ -160,5 +160,5 @@ With `--drama`, each phase waits for **Enter**.
 
 ## 7. Talk takeaway
 
-Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA (Broken Object Level Authorization), mass-assign, or forged admin. **Edge ≠ API authorization.**  
+Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), mass-assign, or forged admin. **Edge ≠ API authorization.**  
 When the console shows `(misconfig)` for CORS / body / stack on this Worker URL, blame the **demo app and `BODY_LIMIT` in wrangler** — not Cloudflare and not Express’s real defaults.

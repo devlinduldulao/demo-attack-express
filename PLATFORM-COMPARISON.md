@@ -30,12 +30,12 @@
 | Findings total | 23 | 23 |
 | By kind | gap 4 · misconfig 3 · app-code 16 | gap 4 · misconfig 3 · app-code 16 |
 | `"express":"5"` | Yes | Yes |
-| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
+| Unauth PII (Personally Identifiable Information) (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
 | Path traversal JWT file | CRITICAL | CRITICAL |
 | CORS `*` | HIGH misconfig | HIGH misconfig |
 | Self-SSRF → debug | **1042** → external HIGH | **CRITICAL** |
 | IMDS-class URL | no IMDS + HIGH no allowlist | no IMDS + HIGH no allowlist |
-| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge | **YES** full climax | **YES** full climax |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) / forge | **YES** full climax | **YES** full climax |
 | `alg:none` | rejected 401 | rejected 401 |
 
 ---
@@ -56,7 +56,7 @@
  both forged admin
 ```
 
-1. **Hosting ≠ API security** — both dump PII (Personally Identifiable Information) and accept forged admin JWT.  
+1. **Hosting ≠ API security** — both dump PII (Personally Identifiable Information) (Personally Identifiable Information) and accept forged admin JWT.  
 2. **CF edge** changes which *probes* fail (self-fetch), not whether *authz* works.  
 3. **+1 critical on Vercel** is self-SSRF of the debug secret — same app hole, different edge.  
 4. Stage: `--drama --reset` on either URL; prefer either for climax (both forge).
@@ -74,7 +74,7 @@ Cloud hosting does not create or remove those three misconfigs — they are in *
 | Demo misconfig: custom ~50mb bodies | **misconfig** | HIGH | HIGH | Demo `BODY_LIMIT=50mb` (`wrangler.toml` / Vercel env / `app.js`) — Express `json()` default **100kb** → 413 |
 | Misconfig: custom error handler leaks stack | **misconfig** | MEDIUM | MEDIUM | Demo `/api/boom` + error middleware — not Express prod `finalhandler` |
 | No rate limiting / no secure headers | **framework-gap** | same | same | Express does not ship these |
-| BOLA (Broken Object Level Authorization) / forge / PII (Personally Identifiable Information) dump / … | **app-code** | same | same | Route logic |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / forge / PII (Personally Identifiable Information) (Personally Identifiable Information) dump / … | **app-code** | same | same | Route logic |
 | Self-SSRF of debug secret | **app-code** hole; outcome differs | **1042** `◇ PLATFORM` | **CRITICAL** | Edge policy ≠ authz; open proxy is still app-code |
 
 **Say on stage:**  

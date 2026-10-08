@@ -29,7 +29,7 @@ This repository contains an intentionally vulnerable API and an offensive
 attack script for teaching purposes only.
 
 You may only run the attack script against systems you own or have written
-permission to test. The authors accept no liability for misuse. Sample PII (Personally Identifiable Information),
+permission to test. The authors accept no liability for misuse. Sample PII (Personally Identifiable Information) (Personally Identifiable Information),
 card numbers, and SSNs are fictional. Do not deploy the vulnerable mode to
 production without the demo gate (DEMO_GATE_TOKEN) or after tearing the
 deployment down.

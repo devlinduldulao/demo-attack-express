@@ -48,23 +48,23 @@ External open proxy (`example.com`) still succeeded → **HIGH** app-code.
 | SSRF self-fetch to own debug URL | **200** — returned `jwtSecret` (**CRITICAL**) |
 | Mild HTML echo XSS class | **200** — reflected as `text/html` (**HIGH**) |
 | HSTS | **Present** (edge) — only partial header help |
-| Unauth PII (Personally Identifiable Information) / BOLA (Broken Object Level Authorization) / forge admin | Still **pwned** |
+| Unauth PII (Personally Identifiable Information) (Personally Identifiable Information) / BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / forge admin | Still **pwned** |
 
 ### Neither platform stopped (app still pwned)
 
 | Attack | Result | Needs login? | kind | Whose fault? |
 | --- | --- | --- | --- | --- |
-| `GET /api/users` full PII (Personally Identifiable Information) dump | **CRITICAL** — SSN, card, CVV | No | app-code | Route logic |
+| `GET /api/users` full PII (Personally Identifiable Information) (Personally Identifiable Information) dump | **CRITICAL** — SSN, card, CVV | No | app-code | Route logic |
 | Path traversal → JWT secret | **CRITICAL** | No | app-code | Route logic |
 | `GET /api/debug/config` secret leak | **CRITICAL** | No | app-code | Route logic |
-| IDOR (Insecure Direct Object Reference) `/api/users/:id` | **CRITICAL** | No | app-code | Route logic |
+| IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) `/api/users/:id` | **CRITICAL** | No | app-code | Route logic |
 | CORS `Access-Control-Allow-Origin: *` | **HIGH** | No | **misconfig** | Demo bolted on `cors({ origin: "*" })` — **not** CF/Vercel, **not** Express default |
 | 40× login flood, zero **429** | **HIGH** | No | framework-gap | Express has no login throttle |
 | ~1.5 MiB body accepted (not 413) | **HIGH** | No | **misconfig** | Demo `BODY_LIMIT=50mb` — Express `json()` default is **100kb** |
 | Open redirect to evil host | **HIGH** | No | app-code | Route logic |
 | Stack leak on `/api/boom` | **MEDIUM** | No | **misconfig** | Custom error JSON with `stack` — not Express `finalhandler` prod default |
 | Missing secure headers / `X-Powered-By` | **MEDIUM** / **INFO** | No | framework-gap | Express does not install Helmet |
-| BOLA (Broken Object Level Authorization): all customers’ orders | **CRITICAL** | Any user JWT | app-code | Route logic |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization): all customers’ orders | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Mass assignment → `role: admin` | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Admin stats dumps passwords | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) | app-code | Route logic |
@@ -88,7 +88,7 @@ Same `server/app.js` on both clouds. **CF/Vercel do not invent the three misconf
 | ~50mb JSON bodies | `misconfig` | Cloudflare / Vercel / Express `json()` 100kb | This demo’s app + env | `BODY_LIMIT` / `jsonBody` — `wrangler.toml` `[vars]`, Vercel env, `app.js` default |
 | Stack in 500 JSON | `misconfig` | Express prod `finalhandler` (redacts when `NODE_ENV=production`) | This demo’s app | `/api/boom` + custom error middleware in `app.js` |
 | No rate limit / no Helmet headers | `framework-gap` | “We forgot a cloud checkbox” | Express does not ship these | Must add middleware yourself |
-| BOLA (Broken Object Level Authorization) / IDOR (Insecure Direct Object Reference) / proxy / traversal / forge | `app-code` | Express router / free hosting | Tutorial-style routes | Handlers in `app.js` |
+| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / proxy / traversal / forge | `app-code` | Express router / free hosting | Tutorial-style routes | Handlers in `app.js` |
 | CF **1042** self-fetch; sometimes edge HSTS | `◇ PLATFORM` | The app learning authz | Edge / Worker runtime | Platform policy only |
 
 **Talk line:**  
@@ -121,7 +121,7 @@ Every finding line should show `(misconfig)`, `(framework-gap)`, or `(app-code)`
 ### You do **not** get automatically
 
 - Authentication on every route  
-- Authorization / ownership (BOLA (Broken Object Level Authorization))  
+- Authorization / ownership (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization))  
 - Field allowlists (mass assignment)  
 - App rate limits on login  
 - Safe body limits (this demo **ships** `BODY_LIMIT=50mb` on purpose — **misconfig**)  
