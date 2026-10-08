@@ -105,7 +105,7 @@ Full runbook: [`../HOW-TO-ATTACK.md`](../HOW-TO-ATTACK.md).
 
 | Probe | Behavior |
 | --- | --- |
-| Path traversal / IDOR / JWT dump | Works |
+| Path traversal / IDOR (Insecure Direct Object Reference) / JWT dump | Works |
 | Login flood | Usually works; use `--skip-flood` if flaky |
 | Large body (~1.5 MiB) | Usually works (**demo misconfig** — see below) |
 | Raw TCP | Skipped (HTTPS) |

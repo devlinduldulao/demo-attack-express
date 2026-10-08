@@ -30,12 +30,12 @@ Those ship in **our** `app.js` / `BODY_LIMIT` on every host (see [Terminal: whos
 | 2 | 0:02 | What we’re attacking | Black-box API · Express 5 + JWT · no SPA · live URL | “No frontend to hack. Hit the API URL.” |
 | 3 | ~0:04 | **How to read the terminal** | See [Legend slide](#legend-slide-how-to-read-the-terminal) below | “Demo scoring + loot — not CVSS.” |
 | 4 | 0:05–20 | *(leave up or black)* | **Terminal** is primary | `--drama --projector --reset` |
-| 5 | ~12–15 | Authn ≠ authz (optional mid-attack) | Login = who · Authz = what you’re allowed to touch · BOLA/IDOR | After first JWT loot / user dump — 20s then back to terminal |
+| 5 | ~12–15 | Authn ≠ authz (optional mid-attack) | Login = who · Authz = what you’re allowed to touch · BOLA (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference) | After first JWT loot / user dump — 20s then back to terminal |
 | 6 | 20:00 | Honest labels | `framework-gap` · `misconfig` · `app-code` · `◇ PLATFORM` | “Don’t blame Express for what we weakened.” |
 | 7 | 20:30 | Defaults vs incomplete setup | 3 false claims → truth (body / stack / CORS) | Disarm the skeptic |
 | 8 | 22:00 | What Express still doesn’t ship | 5–6 bullets: headers, rate limit, timeout, authz, schema, SSRF helper | “Defaults fine where they exist; few exist.” |
 | 9 | 25:00 | Same code, two clouds | Diagram: one `app.js` → CF / Vercel · both pwned | “CDN changes probes, not authz.” |
-| 10 | 28:00 | Edge ≠ API security | CF 1042 / HSTS vs unauth PII + forge | “Platform blocked a probe; cards still dumped.” |
+| 10 | 28:00 | Edge ≠ API security | CF 1042 / HSTS vs unauth PII (Personally Identifiable Information) + forge | “Platform blocked a probe; cards still dumped.” |
 | 11 | 32:00 | Whose fault? | misconfig = us · gap = Express empty box · app-code = routes · PLATFORM = edge | Match report **Whose fault?** block |
 | 12 | 35:00 | Close (5 lines) | Authn≠authz · JWT one control · nothing≠model · edge≠API · misconfig is us | No product pitch until last 30s |
 | 13 | 38:00+ | Q&A / resources | Repo · TEARDOWN · only systems you own | Gate or tear down after |
@@ -79,15 +79,15 @@ On-screen findings are tagged:
 | `app-code` | Vulnerable route / app logic you wrote | “Tutorial shipped this” |
 | `◇ PLATFORM` | Edge/runtime blocked the probe | “CDN ≠ authz” |
 
-### IDOR vs BOLA (say this once if someone freezes)
+### IDOR (Insecure Direct Object Reference) vs BOLA (Broken Object Level Authorization) (say this once if someone freezes)
 
 | Term | Plain English | This demo |
 | --- | --- | --- |
-| **IDOR** | “I change the id in the URL and get someone else’s record.” | `GET /api/users/2` with no (or wrong) token |
-| **BOLA** | OWASP API1 name for the same class — object-level authz missing | Alice’s JWT → `GET /api/orders` returns **all** customers’ orders |
-| **BFLA** | Function/role-level authz missing | Any JWT hits admin stats |
+| **IDOR (Insecure Direct Object Reference)** | “I change the id in the URL and get someone else’s record.” | `GET /api/users/2` with no (or wrong) token |
+| **BOLA (Broken Object Level Authorization)** | OWASP API1 name for the same class — object-level authz missing | Alice’s JWT → `GET /api/orders` returns **all** customers’ orders |
+| **BFLA (Broken Function Level Authorization)** | Function/role-level authz missing | Any JWT hits admin stats |
 
-**One line for the room:** *Login proves who you are. IDOR/BOLA is failing what you’re allowed to touch.*
+**One line for the room:** *Login proves who you are. IDOR (Insecure Direct Object Reference)/BOLA (Broken Object Level Authorization) is failing what you’re allowed to touch.*
 
 Three findings that used to overstate Express defaults (fixed in the script) — **same lines on CF, Vercel, and localhost**:
 
@@ -116,7 +116,7 @@ Whose fault? (read the kind tag on every finding):
   (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
                    Not Express defaults. Not Cloudflare/Vercel inventing them.
   (framework-gap) 4 — Express does not ship the control (headers, rate limit, timeout, …).
-  (app-code)     16 — vulnerable routes you wrote (BOLA, proxy, traversal, debug, …).
+  (app-code)     16 — vulnerable routes you wrote (BOLA (Broken Object Level Authorization), proxy, traversal, debug, …).
   ◇ PLATFORM      N — edge/runtime blocked a probe; does not mean the API is authorized.
 
 Misconfig detail (cloud hosts still show these — same app.js):
@@ -198,7 +198,7 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers
 | --- | --- |
 | Path LOOT `JWT_SECRET` | “No password. Public files → secrets.” |
 | User dump cards / SSN | “Still no token. Every customer.” |
-| BOLA orders | “Alice’s JWT reads everyone’s transfers.” |
+| BOLA (Broken Object Level Authorization) orders | “Alice’s JWT reads everyone’s transfers.” |
 | Mass-assign admin | “We PUT `role: admin`. JWT never stopped it.” |
 | Forged admin | “We stopped needing their password.” |
 | `◇ PLATFORM` (e.g. CF 1042) | “That’s the edge — not the app learning authz.” |
@@ -274,7 +274,7 @@ npm run demo:full     # full flood + internal SSRF stand-in
 
 **How to use Enter:** finish the sentence, then press Enter. If the room is reading, wait.
 
-**Climax order:** settings + raw TCP (skipped on HTTPS) finish *before* BOLA / mass-assign / forge so the last LOOT is the forged admin.
+**Climax order:** settings + raw TCP (skipped on HTTPS) finish *before* BOLA (Broken Object Level Authorization) / mass-assign / forge so the last LOOT is the forged admin.
 
 ### Phase narration map (matches current `attack.mjs`)
 
@@ -290,12 +290,12 @@ npm run demo:full     # full flood + internal SSRF stand-in
 | IMDS-class URL | API7 only when supported by evidence | “Failures do not prove reachability; stand-in credentials are fake.” |
 | Stack + HTML echo | API8 / CWE-79 | “Stack disclosure / HTML injection sink, not demonstrated browser execution.” |
 | Slow handler | API4 | “Client-selected delay; three seconds does not prove no longer deadline.” |
-| User dump / IDOR / debug / search | API5 / API1 / API8 / API3 | “Function access / object access / debug disclosure / sensitive properties.” |
+| User dump / IDOR (Insecure Direct Object Reference) / debug / search | API5 / API1 / API8 / API3 | “Function access / object access / debug disclosure / sensitive properties.” |
 | Account enum | API2 | “Different login errors.” |
 | Settings PUT | API5 / CWE-915 | “Unauthorized global-settings write; privileged-property impact not established.” |
-| BOLA orders | API1 | “Authn without authz.” |
-| Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
+| BOLA (Broken Object Level Authorization) orders | API1 | “Authn without authz.” |
 | Admin stats | API5 | “Non-admin function access tested before escalation.” |
+| Mass assign / cross-user | API3, API1 | “Raw JSON into user row.” |
 | **`alg:none` — rejected** | API2 | “Library saved you — not app design.” |
 | Forged JWT | API2 | “Compromised key; count success only after the intended admin identity is returned.” |
 
@@ -341,7 +341,7 @@ List (framework-gap, undisputable):
 - No response schema / mass-assign guard  
 - No SSRF / safe-redirect helper  
 
-> “JWT claim stands on its own: unauth dump, IDOR, BOLA, mass-assign, BFLA, forged token. Nobody argues with that chain.”
+> “JWT claim stands on its own: unauth dump, IDOR (Insecure Direct Object Reference), BOLA (Broken Object Level Authorization), mass-assign, BFLA (Broken Function Level Authorization), forged token. Nobody argues with that chain.”
 
 **If the report is still on screen:** scroll to **Whose fault?** and read the three misconfig titles out loud once (see [Terminal: whose fault](#terminal-whose-fault-on-cloud-runs)).
 
@@ -376,7 +376,7 @@ Full matrix: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#who
 
 1. **Same app source** — Express 5, intentional vulns, both live.  
 2. **Different edge behavior** — CF **1042** on self-SSRF; Vercel self-proxy returns secret; IMDS empty on both.  
-3. **Same pwn** — user dump, BOLA, mass-assign, forged admin on **both**.  
+3. **Same pwn** — user dump, BOLA (Broken Object Level Authorization), mass-assign, forged admin on **both**.  
 4. **Punchline:** `◇ PLATFORM` vs `✗ APP HOLE`. Do not conflate them.
 
 **Say:**
@@ -413,10 +413,10 @@ Do **not** open a 17-row feature matrix. Link README later.
 
 | Question | Answer |
 | --- | --- |
-| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `app-code`. JWT/BOLA/BFLA chain is the claim. |
-| “What is BOLA / IDOR?” | Same class: object id trusted without ownership. IDOR = classic name; BOLA = OWASP API1. Alice’s JWT reading Bob’s orders. |
+| “Isn’t this just bad code?” | Yes for traversal/proxy/debug — labelled `app-code`. JWT/BOLA (Broken Object Level Authorization)/BFLA (Broken Function Level Authorization) chain is the claim. |
+| “What is BOLA (Broken Object Level Authorization) / IDOR (Insecure Direct Object Reference)?” | Same class: object id trusted without ownership. IDOR (Insecure Direct Object Reference) = classic name; BOLA (Broken Object Level Authorization) = OWASP API1. Alice’s JWT reading Bob’s orders. |
 | “Express 5 fixed security?” | No — v5 is API cleanup, not a security model. |
-| “Would helmet / rate-limit fix it?” | Partly transport; not BOLA/ownership. |
+| “Would helmet / rate-limit fix it?” | Partly transport; not BOLA (Broken Object Level Authorization)/ownership. |
 | “Cloudflare failed?” | No — edge did its job on some probes (`◇ PLATFORM`); app authz still missing. CORS/body/stack are `(misconfig)` from **our** app, not CF. |
 | “Is open CORS a Vercel default?” | No. We added `cors({ origin: "*" })`. Same finding on CF. Tag: `misconfig`. |
 | “Why 50 mb body?” | Demo honesty: Workers + attack need it; Express default is 100 kb; labelled `misconfig` in the report’s Whose fault? block. |
@@ -437,9 +437,9 @@ Do **not** open a 17-row feature matrix. Link README later.
 
 | Strength | Why it lands |
 | --- | --- |
-| Unauth PII first | Gasp before “login” |
+| Unauth PII (Personally Identifiable Information) first | Gasp before “login” |
 | `✗ APP HOLE` vs `◇ PLATFORM` | Prevents edge misread |
-| BOLA + forge chain | JWT myth dies on screen |
+| BOLA (Broken Object Level Authorization) + forge chain | JWT myth dies on screen |
 | CF vs Vercel same app | Differentiator |
 | kind + OWASP tags | Authority with security-literate audience |
 | Enter-driven `--drama` | You talk; they read |

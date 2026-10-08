@@ -95,5 +95,5 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.example.workers.dev --
 ## What is still intentional on the gated demo
 
 The gate only stops **unauthorized callers**. Once the attack script sends the header,
-all intentional vulns (BOLA, mass-assign, debug secret, open proxy, …) still fire —
+all intentional vulns (BOLA (Broken Object Level Authorization), mass-assign, debug secret, open proxy, …) still fire —
 that is the point of the talk.

@@ -1,7 +1,7 @@
 /**
  * In-memory "database" for the VaultPay demo.
  *
- * Deliberately stores sensitive PII the way a tutorial app often does:
+ * Deliberately stores sensitive PII (Personally Identifiable Information) the way a tutorial app often does:
  * plain-text passwords, full SSNs, card numbers, internal notes.
  * Nothing here is real. Nothing here should ever ship to production.
  *

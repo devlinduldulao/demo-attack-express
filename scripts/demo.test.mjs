@@ -121,10 +121,10 @@ test("Bob fallback targets Alice, not Bob's own record", async () => {
     assert.ok(report.findings.some((finding) => finding.title === "Cross-user write without ownership check"));
 });
 
-test("admin fallback does not claim BFLA or privilege escalation", async () => {
+test("admin fallback does not claim BFLA (Broken Function Level Authorization) or privilege escalation", async () => {
     const { report } = await runDemo({ loginFallback: "admin" });
     assert.equal(report.escalated, false);
-    assert.ok(!report.findings.some((finding) => /Admin route|Mass assignment|Cross-user|BOLA on/.test(finding.title)));
+    assert.ok(!report.findings.some((finding) => /Admin route|Mass assignment|Cross-user|BOLA (Broken Object Level Authorization) on/.test(finding.title)));
 });
 
 test("a stale virtual backup key is not reported as an accepted admin forgery", async () => {

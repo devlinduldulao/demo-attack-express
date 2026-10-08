@@ -41,9 +41,9 @@ Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · tal
 | Question | Answer |
 | --- | --- |
 | Current code on Vercel? | **Yes** |
-| Unauth PII / IDOR / secret / traversal? | **CRITICAL** |
+| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / secret / traversal? | **CRITICAL** |
 | Self-SSRF open proxy → debug? | **CRITICAL** (unlike CF 1042) |
-| BOLA / mass-assign / BFLA / forge? | **CRITICAL** — full climax |
+| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge? | **CRITICAL** — full climax |
 | CORS / body / flood? | **HIGH** as labelled |
 | IMDS-class URL? | 502 / no IMDS · **HIGH** no allowlist |
 
@@ -58,9 +58,9 @@ This is the **full chain** on a public free-tier host.
 | Path traversal reads server secret files | app-code | API1 |
 | SSRF open proxy can reach internal URLs | app-code | API7 |
 | Unauthenticated user dump | app-code | API1 |
-| IDOR on `/api/users/:id` without auth | app-code | API1 |
+| IDOR (Insecure Direct Object Reference) on `/api/users/:id` without auth | app-code | API1 |
 | Debug endpoint leaks JWT signing secret | app-code | API8 |
-| BOLA on `/api/orders` | app-code | API1 |
+| BOLA (Broken Object Level Authorization) on `/api/orders` | app-code | API1 |
 | Mass assignment privilege escalation | app-code | API3 |
 | Cross-user write without ownership check | app-code | API1 |
 | Admin route checks login only, not role | app-code | API5 |
@@ -80,7 +80,7 @@ This is the **full chain** on a public free-tier host.
 | Open redirect | app-code |
 | Open proxy no egress allowlist (IMDS-class) | app-code |
 | HTML echo XSS class | app-code |
-| Unauthenticated PII search | app-code |
+| Unauthenticated PII (Personally Identifiable Information) search | app-code |
 | Unauthenticated settings write | app-code |
 
 **MEDIUM / INFO:** same family as CF (headers, stack misconfig, timeout, enum, x-powered-by).
@@ -151,5 +151,5 @@ See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-
 
 ## 7. Talk takeaway
 
-Same incomplete Express + JWT app. Vercel adds the self-SSRF secret path; both still dump PII and accept a forged admin JWT. **Hosting platform ≠ API security.**  
+Same incomplete Express + JWT app. Vercel adds the self-SSRF secret path; both still dump PII (Personally Identifiable Information) and accept a forged admin JWT. **Hosting platform ≠ API security.**  
 `(misconfig)` on this Vercel URL is the **demo’s CORS / BODY_LIMIT / stack handler** — not “serverless defaults are open CORS” and not Express’s 100kb body default.
