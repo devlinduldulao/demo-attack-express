@@ -294,9 +294,9 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers
 
 | Probe | Local Node | Cloudflare Workers |
 | --- | --- | --- |
-| Unauth dump / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
+| Unauth dump / IDOR (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
 | Path traversal secret | CRITICAL | CRITICAL |
-| BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / mass assign / forge admin | CRITICAL | CRITICAL |
+| BOLA (Broken Object Level Authorization) / mass assign / forge admin | CRITICAL | CRITICAL |
 | Login flood no 429 | HIGH | HIGH (usually) |
 | 1.5 MiB body | HIGH | HIGH |
 | Open redirect | HIGH | HIGH |
@@ -353,7 +353,7 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 | Mild HTML XSS sink | Works | Works |
 | Noisy XSS | Often WAF 403 | Mild payload enough |
 | HSTS | Often missing | Often **present** |
-| Authz / PII (Personally Identifiable Information) (Personally Identifiable Information) dump | Still pwned | Still pwned |
+| Authz / PII (Personally Identifiable Information) dump | Still pwned | Still pwned |
 
 Full study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · deploy: [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md).
 
@@ -410,11 +410,11 @@ Numbers shift by one when `--reset` is on (it adds phase 01).
 | 09 | Open proxy / SSRF — self, external, IMDS, **internal pivot**, **redirect hop** | No |
 | 10 | Stack leak + XSS echo | No |
 | 11 | Slow handler | No |
-| 12 | User dump / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search | No |
+| 12 | User dump / IDOR (Insecure Direct Object Reference) / debug / search | No |
 | 13 | Login error enumeration | No |
 | 14 | Unauth settings write | No |
 | 16 | Raw TCP (HTTP only) | No |
-| 17 | Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assign, `alg:none`, forge JWT | Yes (auto) |
+| 17 | Login, BOLA (Broken Object Level Authorization), admin, mass assign, `alg:none`, forge JWT | Yes (auto) |
 
 The SSRF internal-pivot and redirect-hop probes only run when `--internal=URL`
 is set (automatic under `npm run demo`).

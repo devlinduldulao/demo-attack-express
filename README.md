@@ -53,7 +53,7 @@ you almost nothing” framing if you use the honest labels.
 | Claim | Reality |
 | --- | --- |
 | “We added JWT, so the API is secured” | False. Script proves most holes need **no** login. |
-| Unauth PII (Personally Identifiable Information) (Personally Identifiable Information), IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference), BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), mass-assign, BFLA (Broken Function Level Authorization) (Broken Function Level Authorization), forged JWT | Real chain; nobody argues with it. |
+| Unauth PII (Personally Identifiable Information), IDOR (Insecure Direct Object Reference), BOLA (Broken Object Level Authorization), mass-assign, BFLA (Broken Function Level Authorization), forged JWT | Real chain; nobody argues with it. |
 | Path traversal / open redirect / open proxy | **App code** in this server — not Express inventing them. |
 | “Express accepts 1.5 MiB bodies by default” | **False.** `express.json()` is **100 kb**. Demo uses a custom ~50 mb parser (**misconfig**). |
 | “Express leaks stacks in production” | **False** by default — `finalhandler` redacts when `NODE_ENV=production`. Demo overrides (**misconfig**). |
@@ -76,8 +76,8 @@ Every recorded finding carries a `kind`. The engagement report also prints a **W
 | `app-code` | Vulnerable route / app logic (not a framework default) | Same hole on every host |
 | `◇ PLATFORM` | Edge/runtime blocked a **probe** | Only class that differs by cloud (e.g. CF 1042) |
 
-OWASP API Security Top 10 **2023** tags (`API1` BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), `API2` broken auth, `API3` BOPLA, `API4`
-unrestricted resource, `API5` BFLA (Broken Function Level Authorization) (Broken Function Level Authorization), `API7` SSRF, `API8` misconfig/security)
+OWASP API Security Top 10 **2023** tags (`API1` BOLA (Broken Object Level Authorization), `API2` broken auth, `API3` BOPLA, `API4`
+unrestricted resource, `API5` BFLA (Broken Function Level Authorization), `API7` SSRF, `API8` misconfig/security)
 are teaching mappings, not OWASP-assigned severity ratings. Specific weaknesses
 without a clean API category use CWE tags: traversal `CWE-22`, open redirect
 `CWE-601`, and XSS sink `CWE-79`.
@@ -100,12 +100,12 @@ Official definitions: [OWASP API Security Top 10 2023](https://api-security.owas
 | 8 | SSRF-class URL `169.254.169.254` (no egress policy) | No | **app-code** — often empty on CF/Vercel (`◇ PLATFORM`) |
 | 9 | Stack leak + HTML echo | No | **misconfig** + **app-code** |
 | 10 | Slow handler holds socket | No | **framework-gap** |
-| 11 | `GET /api/users` full PII (Personally Identifiable Information) (Personally Identifiable Information) dump | No | **app-code** / missing authz |
-| 12 | IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) `/api/users/:id` | No | **app-code** |
+| 11 | `GET /api/users` full PII (Personally Identifiable Information) dump | No | **app-code** / missing authz |
+| 12 | IDOR (Insecure Direct Object Reference) `/api/users/:id` | No | **app-code** |
 | 13 | Debug config leaks JWT secret | No | **app-code** |
 | 14 | Account enumeration via login errors | No | **app-code** |
 | 15 | Unauth `PUT /api/settings` | No | **app-code** |
-| 16 | BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) on `/api/orders` | Yes (any user) | **app-code** — authn ≠ authz |
+| 16 | BOLA (Broken Object Level Authorization) on `/api/orders` | Yes (any user) | **app-code** — authn ≠ authz |
 | 17 | Mass assignment `role: "admin"` | Yes | **app-code** |
 | 18 | Cross-user write | Yes | **app-code** |
 | 19 | Admin route without role check | Yes | **app-code** + no authz primitive |
@@ -125,9 +125,9 @@ They are a **30-second close**, not a running commentary during the attack.
 
 | Term | Meaning |
 | --- | --- |
-| **IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference)** | *Insecure Direct Object Reference* — client picks an object id (`/api/users/2`) and the server returns it without checking ownership. |
-| **BOLA (Broken Object Level Authorization) (Broken Object Level Authorization)** | *Broken Object Level Authorization* (OWASP API1) — same idea for APIs: authn OK, object-level authz missing (e.g. Alice’s JWT lists everyone’s orders). |
-| **BFLA (Broken Function Level Authorization) (Broken Function Level Authorization)** | *Broken Function Level Authorization* (API5) — role/function checks missing (any user hits admin routes). |
+| **IDOR (Insecure Direct Object Reference)** | *Insecure Direct Object Reference* — client picks an object id (`/api/users/2`) and the server returns it without checking ownership. |
+| **BOLA (Broken Object Level Authorization)** | *Broken Object Level Authorization* (OWASP API1) — same idea for APIs: authn OK, object-level authz missing (e.g. Alice’s JWT lists everyone’s orders). |
+| **BFLA (Broken Function Level Authorization)** | *Broken Function Level Authorization* (API5) — role/function checks missing (any user hits admin routes). |
 | **Mass assignment** | Client writes privileged fields (`role: "admin"`) and the app saves them (API3). |
 | `app-code` | Hole is in **your route logic**, not Express defaults. |
 | `misconfig` | Demo weakened a safer Express default (body size, stack, CORS). |
@@ -147,7 +147,7 @@ They are a **30-second close**, not a running commentary during the attack.
    node --no-warnings attack/attack.mjs https://… --drama --reset --gate=talk-day-secret
    ```
 
-4. Watch unauth probes first, then PII (Personally Identifiable Information) (Personally Identifiable Information) theft, then authz collapse and forged admin JWT.
+4. Watch unauth probes first, then PII (Personally Identifiable Information) theft, then authz collapse and forged admin JWT.
 5. Punchline: **Authn ≠ authz**, **edge ≠ API security**, **nothing is not a security model**.
 6. Expand **CF vs Vercel** for 30–45 min slots ([`TALK.md`](TALK.md)).
 
@@ -292,7 +292,7 @@ Run `npm test` after `npm run install:all` for local output regression checks.
 
 ## Ethics & license
 
-Sample PII (Personally Identifiable Information) (Personally Identifiable Information)/cards/SSNs are fake. **Do not** aim `attack.mjs` at third-party systems.
+Sample PII (Personally Identifiable Information)/cards/SSNs are fake. **Do not** aim `attack.mjs` at third-party systems.
 **Tear down or gate** public deploys after the talk — see [`TEARDOWN.md`](TEARDOWN.md).
 
 MIT + educational-use notice: [`LICENSE`](LICENSE).

