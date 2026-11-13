@@ -13,6 +13,8 @@
     "deploy:vercel": "npm --prefix server run deploy:vercel",
     "attack": "node --no-warnings attack/attack.mjs",
     "attack:local": "node --no-warnings attack/attack.mjs http://localhost:4000 --reset",
+    "attack:short": "node --no-warnings attack/attackv2.mjs",
+    "attack:short:local": "node --no-warnings attack/attackv2.mjs http://localhost:4000 --reset --drama --projector",
     "demo": "node scripts/demo.mjs --skip-flood",
     "demo:full": "node scripts/demo.mjs",
     "install:all": "npm --prefix server install"
