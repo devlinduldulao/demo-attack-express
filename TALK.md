@@ -1,10 +1,11 @@
 # Talk scripts — JWT ≠ Secure API
 
-Two scripts live here:
+Three scripts live here:
 
 | Slot | Use |
 | --- | --- |
 | **[5 minutes](#5-minute-lightning)** | Lightning / hostile room / backup |
+| **[10 minutes](#10-minute-before--after)** | Short slot with the DaloyJS before / after |
 | **[30–45 minutes](#30--45-minute-conference)** | Conference default — **this is the real talk** |
 
 **Claim you can defend end-to-end:**
@@ -221,6 +222,97 @@ Optional 30s product note (do **not** pitch during the run): secure-default fram
 
 ---
 
+# 10-minute before / after
+
+Everything runs on the laptop. No Wi-Fi, no deployed URL.
+
+**Claim for this slot:**
+
+> The framework decides how many of these mistakes are possible.
+> It does not decide all of them.
+
+**Do not say** “Express is insecure”. Every finding on screen is tagged
+`(app-code)` or `(framework-gap)`; the honest line is “Express left each of these
+decisions to the developer, and the developer got them wrong.”
+
+## Before you walk on
+
+```bash
+npm run install:all
+npm test                 # 7 passing, including the comparison table
+npm run server           # terminal 1 — Express build on :4000, leave it running
+```
+
+Terminal 2 is the one on the projector. Font size so that 100 columns fit.
+
+## 0:00–0:45 — Frame
+
+> “Tutorial stack: Express 5, JWT login. It works, it deploys, it feels finished.
+> I have the URL and nothing else.”
+
+## 0:45–5:30 — Attack the Express build
+
+```bash
+npm run attack:short:local
+```
+
+`--drama` waits for **Enter**. There are seven pauses; about 40 seconds each.
+
+| Phase | When you see… | Say… |
+| --- | --- | --- |
+| 02 Data theft | SSN, card, CVV for four users | “No password. No token. Every customer.” |
+| 03 Path traversal | `LOOT JWT_SECRET` | “A file endpoint. `../secrets`. That is the signing key.” |
+| 04 SSRF | `a second route to the same key` | “I asked the server to fetch its own config for me. It did.” |
+| 05 Authn ≠ authz | Orders spanning 4 users | “I log in as Alice. Honestly. Then I read everyone’s orders.” |
+| 05 | `role=admin and balance=1000000` | “I PUT `role: admin` on my own account. The JWT never objected.” |
+| 06 Flood | `40/40 … zero 429` | “Forty wrong passwords in well under a second. Nobody is counting.” |
+| 07 Forge | `Server accepted a fully attacker-forged admin JWT` | “I no longer need anyone’s password.” — **stop talking, let it sit** |
+| Report | `API PWNED — 9 critical` | “Nine criticals. About fifty requests.” |
+
+## 5:30–8:45 — Same app, same mistakes, different framework
+
+```bash
+npm run compare
+```
+
+It boots three builds, attacks each, and prints one table in about five seconds.
+Read it **by column**, left to right:
+
+| Column | Say… |
+| --- | --- |
+| Express 5 | “Everything you just watched. Every row red.” |
+| DaloyJS defaults | “Same handlers. Same mistakes. I changed the framework and nothing else. The user dump still answers, but the SSNs and card numbers are gone, because the route has to declare what it returns. Mass assignment is refused. Five rows are still red.” |
+| DaloyJS + opt-ins | “Five one-line helpers the framework ships. Traversal, SSRF, the admin route and the flood are closed.” |
+| Three rows red everywhere | “Reading other people’s orders. Editing other people’s records. And a debug endpoint that prints the signing key, so the forgery still works. No framework fixes those. That is your code.” |
+| Last row | “And the tutorial secret, `supersecret123`: Express starts. DaloyJS refuses to start.” |
+
+Optional, if you have 20 seconds: `npm run server:daloy:weak-secret` shows the refusal itself.
+
+**If someone asks “did you rig the port?”** — the rules are in
+[`server-daloy/README.md`](server-daloy/README.md). Same handler code, scaffold
+setup only, and one judgment call you should state yourself: the developer
+declared a public `User` schema without `ssn` in it. Type `ssn` into that schema
+and it leaks, exactly like the debug endpoint’s `jwtSecret` does in this demo.
+
+## 8:45–10:00 — Close
+
+1. Authn ≠ authz. A valid JWT is not an access-control policy.
+2. A framework with nothing in the box makes every one of these your job.
+3. A framework with defaults took nine criticals to five without the developer doing anything, and to four with five lines.
+4. The last ones are ownership checks and a leaked key. Those are yours on any framework.
+5. Only attack systems you own.
+
+## If something goes wrong
+
+| Problem | Do this |
+| --- | --- |
+| `Cannot reach http://localhost:4000` | Terminal 1 is not running. `npm run server`. |
+| `429` in a DaloyJS run during rehearsal | The rate limit is real. Restart that server or wait a minute. `npm run compare` is never affected. |
+| Running long | Skip `--drama` on the Express run (`npm run attack:short -- http://localhost:4000 --reset --projector`), then go straight to `npm run compare`. |
+| Projector too narrow for the table | `npm run compare -- --md` prints a narrower Markdown table. Or put the table on a slide. |
+
+---
+
 # 30–45 minute conference
 
 ## Arc (keep this shape)
@@ -359,7 +451,7 @@ This is the **original** material most “JWT isn’t enough” talks lack. Give
 node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset --skip-flood
 ```
 
-**Latest engagement (2026-08-01):** CF **9** critical / 4.3s · Vercel **10** critical / 10.1s · both forged admin. (+1 on Vercel = self-SSRF of debug secret.)
+**Latest engagement (2026-11-14):** CF **9** critical / 4.1s · Vercel **10** critical / 9.1s · both forged admin. (+1 on Vercel = self-SSRF of debug secret. Each edge stopped one probe: Cloudflare the self-fetch, Vercel the `alg:none` token.)
 
 **Whose fault on both URLs (say once while the report’s kind counts are up):**
 

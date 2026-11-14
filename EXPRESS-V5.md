@@ -11,7 +11,7 @@ This folder targets **Express 5**, not Express 4.
 Pinned range in [`server/package.json`](server/package.json):
 
 ```json
-"express": "^5.2.1"
+"express": "^5.3.0"
 ```
 
 Install (from `server/`):
@@ -40,7 +40,7 @@ From the [official guide](https://expressjs.com/en/guide/migrating-5/) and [rele
 
 | Express 5 change | VaultPay status |
 | --- | --- |
-| Node.js >= 18 (Express 5) | This package pins `engines.node: ">=24"` |
+| Node.js >= 18 (Express 5) | This package pins `engines.node: ">=26"` |
 | `res.status(n).json(...)` only (no `res.json(obj, status)`) | Already used throughout `app.js` |
 | `res.redirect(status, url)` order | `res.redirect(302, url)` on `/api/go` |
 | `req.body` default is `undefined` (not `{}`) | Handlers use `req.body \|\| {}`; custom JSON middleware documents this |

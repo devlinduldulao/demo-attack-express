@@ -1,16 +1,20 @@
 # How to run the VaultPay attack demo (step by step)
 
-Complete runbook for **starting the target**, **setting environment variables**, and **running `attack/attack.mjs`**.
+Complete runbook for **starting the target**, **setting environment variables**, and **running the attack scripts**.
 
 | Item | Value |
 | --- | --- |
-| Target app | Intentionally vulnerable **Express 5** + JWT API |
-| Attacker | `attack/attack.mjs` (Node 18+; API package pins Node >= 24) |
+| Target app | Intentionally vulnerable **Express 5** + JWT API (`server/`) |
+| Second target | The same app rebuilt on **DaloyJS** with the same mistakes (`server-daloy/`, laptop only) |
+| Attacker, full | `attack/attack.mjs` — 16 phases, the 30–45 minute talk |
+| Attacker, short | `attack/attackv2.mjs` — 7 phases, the 10 minute slot; works on both targets |
+| Before / after | `npm run compare` — Express vs DaloyJS vs DaloyJS + opt-ins in one table |
+| Node | Attack scripts need Node 18+; both API packages pin Node >= 26 |
 | Live examples | CF: `https://vaultpay-api.devlinduldulao.workers.dev` · Vercel: `https://vaultpay-api.vercel.app` |
 | Frontend | **None** — attack hits the API URL directly |
 | Legal | Only attack systems **you own** or have written permission to test |
 
-Related docs: [`README.md`](README.md) · [`TALK.md`](TALK.md) · [`TEARDOWN.md`](TEARDOWN.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md)
+Related docs: [`README.md`](README.md) · [`TALK.md`](TALK.md) · [`TEARDOWN.md`](TEARDOWN.md) · [`EXPRESS-V5.md`](EXPRESS-V5.md) · [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md) · [`server/DEPLOY-CLOUDFLARE.md`](server/DEPLOY-CLOUDFLARE.md) · [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md) · [`server-daloy/README.md`](server-daloy/README.md)
 
 All commands assume you are at the **repository root** (folder with `server/`, `attack/`, `scripts/`), unless a step says `cd server`.
 
@@ -18,17 +22,16 @@ All commands assume you are at the **repository root** (folder with `server/`, `
 
 ## 0. Prerequisites
 
-1. **Node.js >= 24** for the API (`server/package.json` engines); attacker script needs modern Node with `fetch` (18+)
+1. **Node.js >= 26** for the API (`server/package.json` engines); attacker script needs modern Node with `fetch` (18+)
 2. Clone or open **this repo**
-3. Install API deps once:
+3. Install API deps once (both builds):
 
 ```powershell
-cd server
-npm install
-cd ..
+npm run install:all
+# Express build only:  npm install --prefix server
 ```
 
-4. Attack script needs **no** `npm install` (uses built-in `fetch` + `crypto`).
+4. The attack scripts need **no** `npm install` (built-in `fetch` + `crypto`).
 
 ---
 
@@ -97,7 +100,22 @@ cd ..
 
 ---
 
-### 1.2 Attacker machine (Node running `attack.mjs`)
+### 1.2 Server (DaloyJS build, `server-daloy/`)
+
+| Variable | Required? | Default | Purpose |
+| --- | --- | --- | --- |
+| `PORT` | No | `4100` | HTTP listen port. |
+| `JWT_SECRET` | No | a 53-character demo key, hard-coded | HS256 signing key. **Must be at least 32 bytes**: `JWT_SECRET=supersecret123` makes the server refuse to start. |
+| `DALOY_OPT_IN` | No | unset | Set to `1` to switch on the first-party opt-in helpers (`requireRoles`, `fetchGuard`, `assertSafeRelativePath`, `safeRedirect`, `loginThrottle`). |
+| `NODE_ENV` | No | treated as `production` unless set to `development` | Production turns the boot guards on and redacts 5xx detail. |
+| `DEMO_RESET_TOKEN` | No | unset | Same meaning as on the Express build. |
+
+`DEMO_GATE_TOKEN` and `BODY_LIMIT` are **not** read by this build (it is not
+deployed anywhere, and the body limit is the scaffold's 1 MiB).
+
+---
+
+### 1.3 Attacker machine (Node running the attack scripts)
 
 The attack script takes the **URL as a CLI argument**. It does not require API secrets
 unless the target has `DEMO_GATE_TOKEN` enabled.
@@ -130,21 +148,26 @@ Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
 ## 2. Attack script CLI
 
 ```text
-node --no-warnings attack/attack.mjs <API_BASE_URL> [flags]
+node --no-warnings attack/attack.mjs   <API_BASE_URL> [flags]   # full, 16 phases
+node --no-warnings attack/attackv2.mjs <API_BASE_URL> [flags]   # short, 7 phases
 ```
+
+Both scripts take the same flags, except that `--skip-slow` exists only on the
+full script and `--label=NAME` only on the short one.
 
 | Flag | Meaning |
 | --- | --- |
 | (none) | Full run: wire logs on, flood on, slow probe on |
 | `--drama` | **Wait for Enter** between phases (stage pacing) |
 | `--projector` | No dim text; less wire noise (large rooms) |
-| `--reset` | `POST /api/demo/reset` before recon (warm isolate hygiene) |
+| `--reset` | `POST /api/demo/reset` before the attack, then verify and repeat (up to 8×) while another warm instance still serves tampered data |
 | `--gate=TOKEN` | Send `X-VaultPay-Demo` header (or set `DEMO_GATE_TOKEN` env) |
 | `--verbose` | Print response body previews on more requests |
 | `--quiet` | Less color; hide per-request wire traces |
 | `--json` | Print machine-readable findings after the report |
 | `--skip-flood` | Skip 40 parallel login burst |
-| `--skip-slow` | Skip `/api/slow?ms=3000` |
+| `--skip-slow` | Skip `/api/slow?ms=3000` (full script only) |
+| `--label=NAME` | Name of the stack shown in the banner (short script only; default is read from `/api/health`) |
 | `--internal=URL` | Base URL of the SSRF stand-in internal service (or `INTERNAL_SERVICE_URL`). `npm run demo` sets this for you. |
 
 **Talk / terminal demo:**
@@ -177,12 +200,31 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers
 node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --skip-flood --skip-slow --json
 ```
 
-Root helpers (if present):
+Root helpers:
 
 ```powershell
-npm run attack:local
+npm run attack:local                 # full script → http://localhost:4000 --reset
 npm run attack -- https://vaultpay-api.devlinduldulao.workers.dev
+npm run attack:short:local           # short script → :4000 --reset --drama --projector
+npm run attack:short:daloy           # short script → :4100 (DaloyJS build)
+npm run attack:short -- https://vaultpay-api.devlinduldulao.workers.dev --drama --projector --reset
+npm run compare                      # all three builds, one table (no server needed)
 ```
+
+### What the short script prints
+
+Every probe in `attackv2.mjs` ends in one of three observed outcomes:
+
+| On screen | Means |
+| --- | --- |
+| `✗ APP HOLE` | The attack worked. |
+| `◐ REDUCED` | The hole is still open, but the response carried less than the attack wanted (for example, a user list with no SSN or card number). |
+| `✓ BLOCKED` | The server refused the probe. |
+
+The script only reports what it sees on the wire. Against the Express build
+nothing is reduced or blocked; against the DaloyJS build some probes are.
+The full script (`attack.mjs`) prints `✓ OK` for refused probes and does not
+keep a blocked / reduced tally.
 
 ---
 
@@ -215,7 +257,8 @@ Invoke-RestMethod http://localhost:4000/api/health
 node --no-warnings attack/attack.mjs http://localhost:4000
 ```
 
-**Expect:** `DEMO RESULT: API PWNED` (~10 critical on localhost, including SSRF self-fetch).
+**Expect:** `DEMO RESULT: API PWNED` — 10 critical on localhost with the full script
+(including the SSRF self-fetch), 9 critical with the short script.
 
 ### A4 — Stop
 
@@ -294,17 +337,19 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers
 
 | Probe | Local Node | Cloudflare Workers |
 | --- | --- | --- |
-| Unauth dump / IDOR (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
+| Unauth dump / IDOR / debug secret | CRITICAL | CRITICAL |
 | Path traversal secret | CRITICAL | CRITICAL |
-| BOLA (Broken Object Level Authorization) / mass assign / forge admin | CRITICAL | CRITICAL |
-| Login flood no 429 | HIGH | HIGH (usually) |
-| 1.5 MiB body | HIGH | HIGH |
+| BOLA / mass assign / forge admin | CRITICAL | CRITICAL |
+| Login flood no 429 | HIGH | HIGH |
+| 1.5 MiB body | HIGH | HIGH |
 | Open redirect | HIGH | HIGH |
-| SSRF self-fetch | Often CRITICAL | Often **CF 1042** |
-| XSS `onerror=alert` | HIGH | Often **WAF 403** |
+| SSRF self-fetch | CRITICAL | **CF 1042**, then external fetch HIGH |
+| HTML echo sink | HIGH | HIGH |
 | Raw TCP | HTTP only | **Skipped** (HTTPS) |
+| Totals, full script | 10 critical | 9 critical |
+| Totals, short script | 9 critical | 8 critical · 57 requests |
 
-Study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md).
+The Cloudflare column is the 2026-11-14 capture. Study: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md).
 
 ---
 
@@ -349,11 +394,15 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 
 | Probe | Cloudflare | Vercel |
 | --- | --- | --- |
-| SSRF to own debug URL | Often **1042** blocked | Often **works** (CRITICAL) |
-| Mild HTML XSS sink | Works | Works |
-| Noisy XSS | Often WAF 403 | Mild payload enough |
-| HSTS | Often missing | Often **present** |
-| Authz / PII (Personally Identifiable Information) dump | Still pwned | Still pwned |
+| SSRF to own debug URL | **1042** blocked, external fetch still works | **Works** (CRITICAL) |
+| `alg:none` token | `401` from the app's JWT library | **403 at the edge** (`x-vercel-mitigated: deny`) |
+| HTML echo sink | Works | Works |
+| HSTS | Missing | **Present** |
+| Totals, full script | 9 critical | 10 critical |
+| Totals, short script | 8 critical | 9 critical |
+| Authz / PII dump | Still pwned | Still pwned |
+
+Both columns are the 2026-11-14 capture.
 
 Full study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · deploy: [`server/DEPLOY-VERCEL.md`](server/DEPLOY-VERCEL.md).
 
@@ -381,7 +430,45 @@ node --no-warnings attack/attack.mjs https://YOUR-APP.azurewebsites.net
 
 ---
 
-## 8. Demo credentials (seed data)
+## 8. Path F — DaloyJS build (laptop only)
+
+The same app, same handler mistakes, on DaloyJS. Rules of the port and the
+result table: [`server-daloy/README.md`](server-daloy/README.md).
+
+### F1 — One command
+
+```powershell
+npm run compare            # boots Express + two DaloyJS modes, attacks each, prints one table
+npm run compare -- --md    # the same table as Markdown
+```
+
+### F2 — Or by hand
+
+```powershell
+npm run server:daloy               # http://localhost:4100, scaffold defaults
+npm run attack:short:daloy         # other terminal
+
+npm run server:daloy:opt-in        # same port, with the opt-in helpers on
+npm run server:daloy:weak-secret   # JWT_SECRET=supersecret123 → refuses to start, exit 1
+```
+
+**Expect (short script):** scaffold defaults `5 critical · 1 blocked · 5 reduced`;
+with opt-ins `4 critical · 5 blocked · 3 reduced`. The forged admin JWT still
+works in both, because the debug endpoint still prints the signing key.
+
+### F3 — Things that differ from the Express build
+
+| | Express build | DaloyJS build |
+| --- | --- | --- |
+| Port | 4000 | 4100 |
+| Rate limit | none | 120 requests / minute / client. A third attack run inside a minute gets `429`. |
+| Login throttle | none | opt-in mode only: 5 attempts / 15 minutes / client. A second run cannot log in until the server restarts. |
+| Deploy targets | Cloudflare, Vercel, Azure | none |
+| `/api/health` | `"express":"5"` | `"framework":"DaloyJS (scaffold defaults)"` |
+
+---
+
+## 9. Demo credentials (seed data)
 
 | Email | Password | Role |
 | --- | --- | --- |
@@ -393,9 +480,12 @@ Used automatically by the attacker. Default JWT secret: `supersecret123`.
 
 ---
 
-## 9. Phase order
+## 10. Phase order
 
-Numbers shift by one when `--reset` is on (it adds phase 01).
+### Full script (`attack.mjs`)
+
+Numbers below are with `--reset`. Without it there is no phase 01 and every
+later number is one lower.
 
 | # | Phase | Needs login? |
 | --- | --- | --- |
@@ -410,18 +500,35 @@ Numbers shift by one when `--reset` is on (it adds phase 01).
 | 09 | Open proxy / SSRF — self, external, IMDS, **internal pivot**, **redirect hop** | No |
 | 10 | Stack leak + XSS echo | No |
 | 11 | Slow handler | No |
-| 12 | User dump / IDOR (Insecure Direct Object Reference) / debug / search | No |
+| 12 | User dump / IDOR / debug / search | No |
 | 13 | Login error enumeration | No |
 | 14 | Unauth settings write | No |
-| 16 | Raw TCP (HTTP only) | No |
-| 17 | Login, BOLA (Broken Object Level Authorization), admin, mass assign, `alg:none`, forge JWT | Yes (auto) |
+| 15 | Raw TCP (HTTP only) | No |
+| 16 | Login, BOLA, admin, mass assign, `alg:none`, forge JWT | Yes (auto) |
 
 The SSRF internal-pivot and redirect-hop probes only run when `--internal=URL`
 is set (automatic under `npm run demo`).
 
+### Short script (`attackv2.mjs`)
+
+| # | Phase | Needs login? |
+| --- | --- | --- |
+| 01 | Demo reset (only with `--reset`) | No |
+| 02 | User dump / IDOR / search | No |
+| 03 | Path traversal → signing secret | No |
+| 04 | Open proxy / SSRF (self-fetch; external fallback) | No |
+| 05 | Login, BOLA, admin route, cross-user write, mass assign | Yes (auto) |
+| 06 | Login flood | No |
+| 07 | `alg:none`, forge admin JWT | No |
+
+With `--drama` there is an Enter pause after every phase, including one after
+phase 07 so the forged-admin result stays on screen before the report.
+The flood runs after the login on purpose: a login throttle would otherwise lock
+the attacker out before the authorization probes.
+
 ---
 
-## 10. Talk-day checklist
+## 11. Talk-day checklist
 
 ```powershell
 # Repo root (server/ + attack/)
@@ -446,26 +553,36 @@ node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app
 # 5) End on: DEMO RESULT: API PWNED
 ```
 
+For the **10-minute slot** nothing has to be deployed or online: run the Express
+build locally (`npm run server`, then `npm run attack:short:local`) and finish
+with `npm run compare`. Script: [`TALK.md`](TALK.md#10-minute-before--after).
+
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
+| `Cannot reach http://localhost:…` (short script) | The target is not running. `npm run server` or `npm run server:daloy`. |
+| `429` everywhere against the DaloyJS build | Its rate limit is real (120 / minute). Restart that server or wait a minute. |
+| `Login answered 429 — this client is locked out` | DaloyJS opt-in mode after an earlier run. Restart the server. |
+| `Hijacked Bob` in the user dump on a cloud URL | Another warm instance still has old data. Use `--reset`; both scripts now repeat the reset until the data reads clean. |
+| `DaloyJS refused to start … weak_hs_secret` | `JWT_SECRET` is shorter than 32 bytes. Expected for `supersecret123`. |
+| `Missing server-daloy/node_modules` from `npm run compare` | `npm run install:all` |
 | `fetch failed` / `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` | `$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"` |
 | Connection refused | API not running; wrong URL; hit `/api/health` first |
 | Wrangler not logged in | `cd server; npx wrangler login` |
 | Vercel not logged in | `cd server; vercel login` |
 | Few findings | Wrong host / WAF / not this demo |
-| SSRF not CRITICAL on Workers | Expected CF `1042` on self-fetch — try Vercel URL for full SSRF |
-| XSS not CRITICAL on Workers | Expected WAF `403` on noisy payloads — mild HTML still proves sink |
+| SSRF not CRITICAL on Workers | Expected CF `1042` on self-fetch — the proxy still fetches an external URL (HIGH) |
+| `◇ PLATFORM alg:none request denied at the edge` on Vercel | Expected. Vercel's firewall answers `403` before the app; the forged-token step is unaffected. |
 | Flood flaky | `--skip-flood` |
 | Mass-assign 404 on Vercel | Use latest attacker (seed users Alice/Bob); multi-instance RAM |
-| `express` not 5 after deploy | Redeploy after `npm install` with `express@^5.2.1` |
+| `express` not 5 after deploy | Redeploy after `npm install` with `express@^5.3.0` |
 
 ---
 
-## 12. Copy-paste env blocks
+## 13. Copy-paste env blocks
 
 ### Local Node server
 

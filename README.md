@@ -15,7 +15,7 @@ them exist** — and real apps still ship path traversal, open proxies, and
 skeptic in row 3 cannot sink the talk.
 
 **Backend stack:** [Express **5.x**](https://www.npmjs.com/package/express)
-(`express@^5.2.1`) + JWT + in-memory DB. This package pins **Node.js >= 24**
+(`express@^5.3.0`) + JWT + in-memory DB. This package pins **Node.js >= 26**
 (`server/package.json`); Express 5 itself needs Node >= 18. Migration notes:
 [Migrating to Express 5](https://expressjs.com/en/guide/migrating-5/) ·
 [v5 release post](https://expressjs.com/en/blog/2024-10-15-v5-release/) ·
@@ -207,7 +207,7 @@ vercel --prod --yes
 
 ### Express → Azure App Service
 
-Deploy the **`server/`** folder (Node **>= 24** per `package.json`). Startup: `node server.js`.
+Deploy the **`server/`** folder (Node **>= 26** per `package.json`). Startup: `node server.js`.
 Optional: `JWT_SECRET`, `BODY_LIMIT=50mb`, `NODE_ENV=production`, `DEMO_GATE_TOKEN`.
 
 ---

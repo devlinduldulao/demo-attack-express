@@ -1,10 +1,9 @@
 # Edge platform defaults ≠ API security
 
-> Historical cloud-run analysis from 2026-08-01. Its counts, severity tables, and
-> console excerpts predate the evidence audit and are not current expected output.
-> Current output treats public-health CORS and missing headers as INFO posture
-> observations, reports failed metadata requests as inconclusive, and does not
-> infer an internal-only pivot from public self-fetch. A 1.5 MiB body or 40 login
+> Numbers and ratings below are from the 2026-11-14 captures of both hosts with
+> the current attack script. Public-health CORS and missing headers are INFO
+> posture observations, failed metadata requests are inconclusive, and a public
+> self-fetch does not prove an internal-only pivot. A 1.5 MiB body or 40 login
 > attempts does not establish the maximum body size or absence of all throttles.
 > API tags use OWASP API Security Top 10 2023; severity is demo-author-rated.
 > See [README.md](README.md) for current evidence limits and classifications.
@@ -19,13 +18,13 @@ Same intentional **Express 5** VaultPay app on two free clouds:
 
 Full studies: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md)
 
-**Engagement (2026-08-01):** CF **9** critical / **4.3s** · Vercel **10** critical / **10.1s** · forged admin on **both**.
+**Engagement (2026-11-14):** CF **9** critical / **4.1s** · Vercel **10** critical / **9.1s** · forged admin on **both**.
 
 ---
 
 ## One sentence
 
-**Cloudflare free / default edge protection filters some noisy attacks.  
+**A free / default cloud edge filters some noisy probes.  
 It does not authorize your REST API.**
 
 ---
@@ -41,30 +40,39 @@ It does not authorize your REST API.**
 That is **edge / runtime platform** behavior — not Express 5 “becoming secure.”  
 External open proxy (`example.com`) still succeeded → **HIGH** app-code.
 
+### Vercel *did* interfere too (this run)
+
+| Probe | What happened | Who blocked it? |
+| --- | --- | --- |
+| `alg:none` token on `/api/me` | HTTP **403**, `x-vercel-mitigated: deny` | **Vercel** firewall — the app never saw it |
+
+The forged admin token signed with the leaked secret is an ordinary, valid-looking
+JWT. It went straight through.
+
 ### Vercel *did little* for these probes (same app)
 
 | Probe | Vercel result |
 | --- | --- |
 | SSRF self-fetch to own debug URL | **200** — returned `jwtSecret` (**CRITICAL**) |
-| Mild HTML echo XSS class | **200** — reflected as `text/html` (**HIGH**) |
+| HTML echo XSS class | **200** — reflected as `text/html` (**HIGH**) |
 | HSTS | **Present** (edge) — only partial header help |
-| Unauth PII (Personally Identifiable Information) / BOLA (Broken Object Level Authorization) / forge admin | Still **pwned** |
+| Unauth PII / BOLA / forge admin | Still **pwned** |
 
 ### Neither platform stopped (app still pwned)
 
 | Attack | Result | Needs login? | kind | Whose fault? |
 | --- | --- | --- | --- | --- |
-| `GET /api/users` full PII (Personally Identifiable Information) dump | **CRITICAL** — SSN, card, CVV | No | app-code | Route logic |
+| `GET /api/users` full PII dump | **CRITICAL** — SSN, card, CVV | No | app-code | Route logic |
 | Path traversal → JWT secret | **CRITICAL** | No | app-code | Route logic |
 | `GET /api/debug/config` secret leak | **CRITICAL** | No | app-code | Route logic |
-| IDOR (Insecure Direct Object Reference) `/api/users/:id` | **CRITICAL** | No | app-code | Route logic |
-| CORS `Access-Control-Allow-Origin: *` | **HIGH** | No | **misconfig** | Demo bolted on `cors({ origin: "*" })` — **not** CF/Vercel, **not** Express default |
+| IDOR `/api/users/:id` | **CRITICAL** | No | app-code | Route logic |
+| CORS `Access-Control-Allow-Origin: *` on health | **INFO** | No | **misconfig** | Demo bolted on `cors({ origin: "*" })` — **not** CF/Vercel, **not** Express default |
 | 40× login flood, zero **429** | **HIGH** | No | framework-gap | Express has no login throttle |
 | ~1.5 MiB body accepted (not 413) | **HIGH** | No | **misconfig** | Demo `BODY_LIMIT=50mb` — Express `json()` default is **100kb** |
 | Open redirect to evil host | **HIGH** | No | app-code | Route logic |
 | Stack leak on `/api/boom` | **MEDIUM** | No | **misconfig** | Custom error JSON with `stack` — not Express `finalhandler` prod default |
-| Missing secure headers / `X-Powered-By` | **MEDIUM** / **INFO** | No | framework-gap | Express does not install Helmet |
-| BOLA (Broken Object Level Authorization): all customers’ orders | **CRITICAL** | Any user JWT | app-code | Route logic |
+| Missing secure headers / `X-Powered-By` | **INFO** | No | framework-gap | Express does not install Helmet |
+| BOLA: all customers’ orders | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Mass assignment → `role: admin` | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Admin stats dumps passwords | **CRITICAL** | Any user JWT | app-code | Route logic |
 | Forged admin JWT with leaked secret | **CRITICAL** | No (after secret leak) | app-code | Route logic |
@@ -73,8 +81,8 @@ External open proxy (`example.com`) still succeeded → **HIGH** app-code.
 
 | Cloud | Result |
 | --- | --- |
-| Cloudflare | `API PWNED — 9 critical · 71 requests · 4.3s` |
-| Vercel | `API PWNED — 10 critical · 70 requests · 10.1s` |
+| Cloudflare | `API PWNED — 9 critical · 71 requests · 4.1s` |
+| Vercel | `API PWNED — 10 critical · 71 requests · 9.1s` |
 
 ---
 
@@ -88,13 +96,13 @@ Same `server/app.js` on both clouds. **CF/Vercel do not invent the three misconf
 | ~50mb JSON bodies | `misconfig` | Cloudflare / Vercel / Express `json()` 100kb | This demo’s app + env | `BODY_LIMIT` / `jsonBody` — `wrangler.toml` `[vars]`, Vercel env, `app.js` default |
 | Stack in 500 JSON | `misconfig` | Express prod `finalhandler` (redacts when `NODE_ENV=production`) | This demo’s app | `/api/boom` + custom error middleware in `app.js` |
 | No rate limit / no Helmet headers | `framework-gap` | “We forgot a cloud checkbox” | Express does not ship these | Must add middleware yourself |
-| BOLA (Broken Object Level Authorization) / IDOR (Insecure Direct Object Reference) / proxy / traversal / forge | `app-code` | Express router / free hosting | Tutorial-style routes | Handlers in `app.js` |
-| CF **1042** self-fetch; sometimes edge HSTS | `◇ PLATFORM` | The app learning authz | Edge / Worker runtime | Platform policy only |
+| BOLA / IDOR / proxy / traversal / forge | `app-code` | Express router / free hosting | Tutorial-style routes | Handlers in `app.js` |
+| CF **1042** self-fetch; Vercel `alg:none` deny; Vercel HSTS | `◇ PLATFORM` | The app learning authz | Edge / Worker runtime | Platform policy only |
 
 **Talk line:**  
 > “When you see `(misconfig)` on the cloud run, that is **us** — the deploy env and the app — not Express inventing open CORS or 50mb bodies, and not Cloudflare failing to ‘secure the API.’”
 
-**Same on both clouds:** `By kind: framework-gap: 4 · misconfig: 3 · app-code: 16`  
+**Same on both clouds:** `By kind: framework-gap: 4 · misconfig: 3 · app-code: 15`  
 **Differs by platform:** only probe outcomes tagged `◇ PLATFORM` (and Vercel’s +1 critical self-SSRF).
 
 Re-run for a fresh terminal transcript (logs are local / gitignored):
@@ -121,7 +129,7 @@ Every finding line should show `(misconfig)`, `(framework-gap)`, or `(app-code)`
 ### You do **not** get automatically
 
 - Authentication on every route  
-- Authorization / ownership (BOLA (Broken Object Level Authorization))  
+- Authorization / ownership (BOLA — Broken Object Level Authorization)  
 - Field allowlists (mass assignment)  
 - App rate limits on login  
 - Safe body limits (this demo **ships** `BODY_LIMIT=50mb` on purpose — **misconfig**)  

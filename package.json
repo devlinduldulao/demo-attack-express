@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Intentionally vulnerable Express 5 + JWT demo API and black-box attack script. Educational only.",
+  "description": "Intentionally vulnerable Express 5 + JWT demo API, the same app rebuilt on DaloyJS, and a black-box attack script that runs against both. Educational only.",
   "scripts": {
-    "test": "node --test scripts/demo.test.mjs",
+    "test": "node --test scripts/demo.test.mjs scripts/compare.test.mjs",
     "server": "npm --prefix server start",
     "server:dev": "npm --prefix server run dev",
+    "server:daloy": "npm --prefix server-daloy start",
+    "server:daloy:opt-in": "npm --prefix server-daloy run start:opt-in",
+    "server:daloy:weak-secret": "npm --prefix server-daloy run start:weak-secret",
     "server:cf": "npm --prefix server run dev:cf",
     "deploy:cf": "npm --prefix server run deploy:cf",
     "deploy:vercel": "npm --prefix server run deploy:vercel",
@@ -15,8 +18,10 @@
     "attack:local": "node --no-warnings attack/attack.mjs http://localhost:4000 --reset",
     "attack:short": "node --no-warnings attack/attackv2.mjs",
     "attack:short:local": "node --no-warnings attack/attackv2.mjs http://localhost:4000 --reset --drama --projector",
+    "attack:short:daloy": "node --no-warnings attack/attackv2.mjs http://localhost:4100 --reset --drama --projector",
+    "compare": "node scripts/compare.mjs",
     "demo": "node scripts/demo.mjs --skip-flood",
     "demo:full": "node scripts/demo.mjs",
-    "install:all": "npm --prefix server install"
+    "install:all": "npm --prefix server install && npm --prefix server-daloy install"
   }
 }

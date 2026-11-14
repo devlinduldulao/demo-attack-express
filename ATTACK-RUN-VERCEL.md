@@ -1,38 +1,39 @@
 # Attack run study — Vercel (Express 5)
 
-> Historical capture (2026-08-01), not current expected output. The later evidence
-> audit corrected traversal to CWE-22, redirect to CWE-601, HTML sink to CWE-79,
-> collection/settings access to API5, and authentication throttling to API2.
-> CORS/headers are posture observations; failed metadata probes are not findings.
-> Self-fetch of a public URL does not establish internal-only reachability.
-> Old severity totals and titles below are preserved as history, not endorsed as
-> current classifications. Re-run to obtain current evidence and counts; see README.md.
+> Fresh capture, 2026-11-14 (UTC), with the current attack scripts. It replaces
+> the 2026-08-01 study, whose titles and totals predated the evidence audit.
+> Severities are demo-author ratings, not CVSS. Counts are finding records, not
+> unique root causes.
 
-**Target:** `https://vaultpay-api.vercel.app`  
-**Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)  
-**Runtime:** `vercel-serverless` (from `/api/debug/config`)  
-**Deployed:** 2026-08-01 — local `vercel --prod --yes`  
-**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
-**Attack:** 2026-08-01 · `node --no-warnings attack/attack.mjs URL --reset --json`  
-(no `--internal`)
+**Target:** `https://vaultpay-api.vercel.app`
+**Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)
+**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`
+**Debug config:** `env=production`, `runtime=vercel-serverless`, `bodyLimit=50mb`
+**Deployed code:** whatever was live on the day. The project was **not**
+redeployed for this capture.
+**TLS bypass:** not needed on this network.
 
-```powershell
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
-node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --reset --json
-# stage pacing:
-node --no-warnings attack/attack.mjs https://vaultpay-api.vercel.app --drama --reset
+Two runs, one per script:
+
+```bash
+node --no-warnings attack/attack.mjs   https://vaultpay-api.vercel.app --projector --reset --json
+node --no-warnings attack/attackv2.mjs https://vaultpay-api.vercel.app --projector --reset --json
+# stage pacing: add --drama
 ```
 
-**Result:** `DEMO RESULT: API PWNED — 10 critical findings · 70 requests · 10.1s`  
-**By severity:** `CRITICAL: 10` · `HIGH: 8` · `MEDIUM: 4` · `INFO: 1` (**23** findings)  
-**By kind:** `app-code: 16` · `framework-gap: 4` · `misconfig: 3`  
-**OWASP API:** API1, API2, API3, API4, API5, API7, API8  
-**Loot:** 4 users · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
-**`alg:none`:** rejected (401) — jsonwebtoken v9 defaults to HS256/384/512 for string secrets
+| | Full run (`attack.mjs`) | Short edition (`attackv2.mjs`) |
+| --- | --- | --- |
+| Result line | `API PWNED — 10 critical findings · 71 requests · 9.1s` | `API PWNED — 9 critical findings · 56 requests · 3.1s` |
+| Finding records | 22 | 11 |
+| By severity | CRITICAL 10 · HIGH 6 · MEDIUM 3 · INFO 3 | CRITICAL 9 · HIGH 2 |
+| By kind | app-code 15 · framework-gap 4 · misconfig 3 | app-code 10 · framework-gap 1 |
+| OWASP API 2023 | API1, API2, API3, API4, API5, API7, API8 | API1, API2, API3, API5, API7 |
+| Loot | 4 users · 5 orders · JWT secret · privilege escalation · forged admin | same |
+| `◇ PLATFORM` notes | 1 (`alg:none` denied at the edge) | 1 (same) |
+| Blocked / reduced probes | not tallied by this script | 0 / 0 |
 
-Raw log (local, gitignored): `ATTACK-RUN-VERCEL-LATEST.log`  
-Re-captured after **Whose fault?** report landed in `attack/attack.mjs` — search the log for `Whose fault?` / `Misconfig detail` (same three misconfigs as CF).  
-Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · talk script: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs)
+Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) ·
+[`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · talk script: [`TALK.md`](TALK.md)
 
 ---
 
@@ -40,116 +41,130 @@ Cloudflare sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · tal
 
 | Question | Answer |
 | --- | --- |
-| Current code on Vercel? | **Yes** |
-| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / secret / traversal? | **CRITICAL** |
-| Self-SSRF open proxy → debug? | **CRITICAL** (unlike CF 1042) |
-| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge? | **CRITICAL** — full climax |
-| CORS / body / flood? | **HIGH** as labelled |
-| IMDS-class URL? | 502 / no IMDS · **HIGH** no allowlist |
+| Unauthenticated user dump, IDOR, PII search? | **Works.** SSN, card number and CVV for all four users with no token. |
+| Path traversal to the signing secret? | **Works.** `../secrets/jwt-backup.txt` returns `JWT_SECRET=supersecret123`. |
+| Self-SSRF through `/api/proxy`? | **Works** (unlike Cloudflare). The server fetched its own debug config and returned the secret. |
+| BOLA, admin route, cross-user write, mass assignment? | **Works.** One ordinary login as Alice. |
+| Forged admin JWT? | **Works.** The server returns the admin identity for an attacker-signed token. |
+| `alg:none`? | **Denied by Vercel's firewall** (`403`, `x-vercel-mitigated: deny`). The app never saw the request. |
+| Cloud metadata URL? | `502`, no metadata content. No finding recorded. |
+| Login flood? | 40 of 40 wrong passwords answered normally, zero `429`. |
 
-This is the **full chain** on a public free-tier host.
+This is the full chain on a public free-tier host.
 
 ---
 
-## 2. CRITICAL (10)
+## 2. Full run — findings (22)
 
-| Finding | kind | OWASP |
+### CRITICAL (10)
+
+| Finding | kind | Tag |
 | --- | --- | --- |
-| Path traversal reads server secret files | app-code | API1 |
-| SSRF open proxy can reach internal URLs | app-code | API7 |
-| Unauthenticated user dump | app-code | API1 |
-| IDOR (Insecure Direct Object Reference) on `/api/users/:id` without auth | app-code | API1 |
+| Path traversal exposes virtual secret-file contents | app-code | CWE-22 |
+| SSRF proxy returns its public debug endpoint's secret | app-code | API7 |
+| Unauthenticated user dump | app-code | API5 |
+| IDOR on `/api/users/:id` without auth | app-code | API1 |
 | Debug endpoint leaks JWT signing secret | app-code | API8 |
-| BOLA (Broken Object Level Authorization) on `/api/orders` | app-code | API1 |
-| Mass assignment privilege escalation | app-code | API3 |
+| BOLA on `/api/orders` | app-code | API1 |
+| Admin route accessible to a non-admin identity | app-code | API5 |
 | Cross-user write without ownership check | app-code | API1 |
-| Admin route checks login only, not role | app-code | API5 |
+| Mass assignment privilege escalation | app-code | API3 |
 | Forged JWTs accepted (weak/leaked secret) | app-code | API2 |
 
-(+1 critical vs CF is **self-SSRF returning the debug secret**.)
+The SSRF finding is the one extra critical compared with Cloudflare. It proves
+the proxy returned the secret from the app's own public URL; it does not prove
+access to an internal-only network.
+
+### HIGH (6)
+
+| Finding | kind | Tag | Notes |
+| --- | --- | --- | --- |
+| Login accepts approximately 1.5 MiB JSON body | misconfig | API4 | HTTP 401 after parsing, in 878 ms |
+| No authentication throttling observed in this batch | framework-gap | API2 | 40 × 401, zero 429 |
+| Open redirect | app-code | CWE-601 | |
+| App code: reflected HTML echo sink (XSS class) | app-code | CWE-79 | |
+| Unauthenticated PII search | app-code | API3 | |
+| Unauthenticated settings write accepts arbitrary properties | app-code | API5 | |
+
+### MEDIUM (3) and INFO (3)
+
+| Finding | Severity | kind | Tag |
+| --- | --- | --- | --- |
+| Custom handler exposes stack trace | MEDIUM | misconfig | API8 |
+| Client-selected delay holds a request for approximately 3 seconds | MEDIUM | framework-gap | API4 |
+| Login error messages enable account enumeration | MEDIUM | app-code | API2 |
+| `X-Powered-By: Express` left enabled | INFO | framework-gap | — |
+| Security headers missing on health response | INFO | framework-gap | API8 |
+| Health response permits cross-origin reads | INFO | misconfig | API8 |
+
+Five of the six audited browser headers were missing. `strict-transport-security`
+was present (`max-age=63072000; includeSubDomains; preload`), added by Vercel.
 
 ---
 
-## 3. HIGH (8)
+## 3. Short edition — findings (11)
 
-| Finding | kind |
-| --- | --- |
-| CORS misconfig allows any browser origin | misconfig |
-| Demo misconfig: custom ~50mb bodies | misconfig |
-| No rate limiting on authentication | framework-gap |
-| Open redirect | app-code |
-| Open proxy no egress allowlist (IMDS-class) | app-code |
-| HTML echo XSS class | app-code |
-| Unauthenticated PII (Personally Identifiable Information) search | app-code |
-| Unauthenticated settings write | app-code |
+| Phase | Finding | Severity |
+| --- | --- | --- |
+| 02 Data theft | Unauthenticated user dump | CRITICAL |
+| 02 | IDOR on `/api/users/:id` without auth | CRITICAL |
+| 02 | Unauthenticated PII search | HIGH |
+| 03 Path traversal | Path traversal exposes virtual secret-file contents | CRITICAL |
+| 04 SSRF | SSRF proxy returns its public debug endpoint's secret | CRITICAL |
+| 05 Authn ≠ authz | BOLA on `/api/orders` | CRITICAL |
+| 05 | Admin route accessible to a non-admin identity | CRITICAL |
+| 05 | Cross-user write without ownership check | CRITICAL |
+| 05 | Mass assignment privilege escalation | CRITICAL |
+| 06 Login flood | No authentication throttling observed in this batch | HIGH |
+| 07 Forge | Forged JWTs accepted (weak/leaked secret) | CRITICAL |
 
-**MEDIUM / INFO:** same family as CF (headers, stack misconfig, timeout, enum, x-powered-by).
+On this host the short edition matches a laptop run finding for finding, so it
+is the better deployed target if you want phase 04 to show the secret.
 
 ---
 
 ## 4. Misconfig (3) — whose fault on this Vercel deploy?
 
-Same three findings as Cloudflare (identical `app.js`). **Not** Vercel inventing open CORS or 50mb bodies.
+Identical to Cloudflare. These are **not** Vercel defaults and **not** Express defaults.
 
-| Finding | Severity | Terminal kind | Not whose fault | Is whose fault | Shipped how |
-| --- | --- | --- | --- | --- | --- |
-| CORS misconfig allows any browser origin | HIGH | `misconfig` | Vercel edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
-| Demo misconfig: custom ~50mb bodies | HIGH | `misconfig` | Vercel edge, Express `json()` 100kb | Demo app + env | `BODY_LIMIT` default/`vercel env` + `jsonBody` |
-| Custom error handler leaks stack | MEDIUM | `misconfig` | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
+| Finding | Severity | Not whose fault | Is whose fault | Shipped how |
+| --- | --- | --- | --- | --- |
+| Health response permits cross-origin reads | INFO | Vercel edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
+| Login accepts approximately 1.5 MiB JSON body | HIGH | Vercel, Express `json()` 100kb | Demo app + env | `BODY_LIMIT=50mb` + `jsonBody` |
+| Custom handler exposes stack trace | MEDIUM | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
 
-**Attack phases** (identical to CF): CORS probe → oversized login body → `/api/boom` stack.  
-JSON proof: `--json` then grep `"kind": "misconfig"` — three titles, same as Cloudflare.
-
-### Terminal excerpt (committed proof — from live Vercel run)
-
-Full wire log is gitignored (`ATTACK-RUN-VERCEL-LATEST.log`). Engagement report after the run (same misconfig story as CF):
-
-```text
-  By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
-
-  Whose fault? (read the kind tag on every finding):
-    (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
-                     Not Express defaults. Not Cloudflare/Vercel inventing them.
-    (framework-gap) 4 — Express does not ship the control ...
-    (app-code)     16 — vulnerable routes you wrote ...
-
-  Misconfig detail (cloud hosts still show these — same app.js):
-  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
-  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
-  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
-
-  DEMO RESULT: API PWNED — 10 critical findings · 70 requests · 10.2s
-```
-
-Vercel may add **HSTS** at the edge. That does **not** clear the three misconfigs.  
-(+1 critical vs CF is self-SSRF secret — **app-code**, not misconfig.)
-
-See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty) · sister: [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) · talk: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs).
+See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).
 
 ---
 
-## 5. Edge / platform (this run)
+## 5. Platform notes (this capture)
 
-| Probe | Vercel |
+| Probe | Vercel result |
 | --- | --- |
-| Self-proxy → `/api/debug/config` | **200** + `jwtSecret` |
-| IMDS `169.254.169.254` | no real IMDS · platform note |
-| HSTS | often present on edge; app still missing CSP/XFO/nosniff |
+| `alg:none` token on `/api/me` | **403 from the firewall**, `x-vercel-mitigated: deny`. Reproduced three times by hand. A malformed but ordinary token (`abc.def.ghi`) reached the app and got its `401`. |
+| Self `/api/proxy` → own debug config | Works (**CRITICAL**) |
+| Metadata URL `169.254.169.254` | `502`, no metadata content, no finding |
+| HSTS | Present, added by the platform |
+| Raw TCP probes | Skipped (HTTPS target) |
+| Internal pivot (`--internal`) | Not used |
+| `--reset` | One reset was enough in both runs; no tampered data seen afterwards |
+
+### The `alg:none` denial is new
+
+The 2026-08-01 capture recorded `alg:none` as rejected with `401` by
+`jsonwebtoken`. On 2026-11-14 the request no longer reaches the app. Both
+attack scripts now print this as `◇ PLATFORM` instead of crediting the JWT
+library, because the app's own answer to an unsigned token is untested on this
+host.
+
+It is the same lesson as Cloudflare's error 1042, with the roles swapped: the
+edge stopped one noisy probe, and the forged admin token signed with the leaked
+secret went straight through.
 
 ---
 
-## 6. Compare to Cloudflare (same attacker, same day)
+## 6. Talk takeaway
 
-| | Cloudflare | Vercel |
-| --- | --- | --- |
-| Critical | **9** | **10** |
-| Requests / time | 71 · 4.3s | 70 · 10.1s |
-| Forged admin | YES | YES |
-| Self-SSRF secret | No (1042) | **YES** |
-
----
-
-## 7. Talk takeaway
-
-Same incomplete Express + JWT app. Vercel adds the self-SSRF secret path; both still dump PII (Personally Identifiable Information) and accept a forged admin JWT. **Hosting platform ≠ API security.**  
-`(misconfig)` on this Vercel URL is the **demo’s CORS / BODY_LIMIT / stack handler** — not “serverless defaults are open CORS” and not Express’s 100kb body default.
+Vercel's edge added HSTS and denied one unsigned-token request. It did not stop
+the card dump, the secret leak, the self-SSRF, BOLA, mass assignment or the
+forged admin token. **Edge ≠ API authorization.**

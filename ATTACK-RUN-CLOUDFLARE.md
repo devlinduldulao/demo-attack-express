@@ -1,37 +1,42 @@
 # Attack run study — Cloudflare Workers (Express 5)
 
-> Historical capture (2026-08-01), not current expected output. The later evidence
-> audit corrected traversal to CWE-22, redirect to CWE-601, HTML sink to CWE-79,
-> collection/settings access to API5, and authentication throttling to API2.
-> CORS/headers are posture observations; failed metadata probes are not findings.
-> Old severity totals and titles below are preserved as history, not endorsed as
-> current classifications. Re-run to obtain current evidence and counts; see README.md.
+> Fresh capture, 2026-11-14 (UTC), with the current attack scripts. It replaces
+> the 2026-08-01 study, whose titles and totals predated the evidence audit.
+> Severities are demo-author ratings, not CVSS. Counts are finding records, not
+> unique root causes.
 
-**Target:** `https://vaultpay-api.devlinduldulao.workers.dev`  
-**Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)  
-**Deployed:** 2026-08-01 — local `wrangler deploy`  
-**Worker Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
-**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`  
-**Attack:** 2026-08-01 · `node --no-warnings attack/attack.mjs URL --reset --json`  
-(no `--internal`; no prototype-pollution phase in current attacker)
+**Target:** `https://vaultpay-api.devlinduldulao.workers.dev`
+**Stack:** **Express 5** + JWT (intentionally vulnerable VaultPay)
+**Health:** `{"ok":true,"service":"vaultpay-api","express":"5"}`
+**Debug config:** `env=production`, `runtime=cloudflare-workers`, `bodyLimit=50mb`
+**Deployed code:** whatever was live on the day. The Worker was **not** redeployed
+for this capture and its version ID was not re-checked.
+**TLS bypass:** not needed on this network.
 
-```powershell
-$env:NODE_TLS_REJECT_UNAUTHORIZED = "0"   # Zscaler only if needed
-node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --reset --json
-# stage pacing:
-node --no-warnings attack/attack.mjs https://vaultpay-api.devlinduldulao.workers.dev --drama --reset
+Two runs, one per script:
+
+```bash
+node --no-warnings attack/attackv2.mjs https://vaultpay-api.devlinduldulao.workers.dev --projector --reset
+node --no-warnings attack/attack.mjs   https://vaultpay-api.devlinduldulao.workers.dev --projector --reset --json
+# stage pacing: add --drama
 ```
 
-**Result:** `DEMO RESULT: API PWNED — 9 critical findings · 71 requests · 4.3s`  
-**By severity:** `CRITICAL: 9` · `HIGH: 9` · `MEDIUM: 4` · `INFO: 1` (**23** findings)  
-**By kind:** `app-code: 16` · `framework-gap: 4` · `misconfig: 3`  
-**OWASP API:** API1, API2, API3, API4, API5, API7, API8  
-**Loot:** 4 users · JWT secret **YES** · privilege esc **YES** · forged admin **YES**  
-**`alg:none`:** rejected (401) — jsonwebtoken v9 defaults to HS256/384/512 for string secrets
+| | Short edition (`attackv2.mjs`) | Full run (`attack.mjs`) |
+| --- | --- | --- |
+| Result line | `API PWNED — 8 critical findings · 57 requests · 0.7s` | `API PWNED — 9 critical findings · 71 requests · 4.1s` |
+| Finding records | 11 | 22 |
+| By severity | CRITICAL 8 · HIGH 3 | CRITICAL 9 · HIGH 7 · MEDIUM 3 · INFO 3 |
+| By kind | app-code 10 · framework-gap 1 | app-code 15 · framework-gap 4 · misconfig 3 |
+| OWASP API 2023 | API1, API2, API3, API5, API7 | API1, API2, API3, API4, API5, API7, API8 |
+| Loot | 4 users · 5 orders · JWT secret · privilege escalation · forged admin | same |
+| `◇ PLATFORM` notes | 1 (error 1042) | 1 (error 1042) |
+| Blocked / reduced probes | 0 / 0 | not tallied by this script |
 
-Raw log (local, gitignored): `ATTACK-RUN-CLOUDFLARE-LATEST.log`  
-Re-captured after **Whose fault?** report landed in `attack/attack.mjs` — search the log for `Whose fault?` / `Misconfig detail`.  
-Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · talk script: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs)
+The full run was captured just before the reset check described in section 5 was
+added; the current script sends at least one more request.
+
+Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) (captured the same day) ·
+[`PLATFORM-COMPARISON.md`](PLATFORM-COMPARISON.md) · talk script: [`TALK.md`](TALK.md)
 
 ---
 
@@ -39,126 +44,136 @@ Sister study: [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) · [`PLATFORM-COMPA
 
 | Question | Answer |
 | --- | --- |
-| Current code on CF? | **Yes** (version above) |
-| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / secret / traversal? | **CRITICAL** |
-| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge? | **CRITICAL** — full climax |
-| Self-SSRF open proxy? | **Blocked** CF **1042** → external open proxy still **HIGH** |
-| IMDS-class URL? | No real IMDS · **HIGH** no egress allowlist + `◇ PLATFORM` |
-| CORS `*`? | **HIGH** misconfig |
+| Unauthenticated user dump, IDOR, PII search? | **Works.** SSN, card number and CVV for all four users with no token. |
+| Path traversal to the signing secret? | **Works.** `../secrets/jwt-backup.txt` returns `JWT_SECRET=supersecret123`. |
+| BOLA, admin route, cross-user write, mass assignment? | **Works.** One ordinary login as Alice. |
+| Forged admin JWT? | **Works.** The server returns the admin identity for an attacker-signed token. |
+| `alg:none`? | Rejected (401) by `jsonwebtoken` v9, not by the app. |
+| Self-SSRF through `/api/proxy`? | **Blocked by Cloudflare** (error 1042). The proxy still fetched `https://example.com/`. |
+| Cloud metadata URL? | `403`, no metadata content. No finding recorded. |
+| Login flood? | 40 of 40 wrong passwords answered normally, zero `429`, in 318 ms. |
+
+Cloudflare changed the outcome of one probe out of the whole run. That is the
+only difference from a local run: local scores 9 critical on the short edition,
+because the self-fetch succeeds there.
 
 ---
 
-## 2. CRITICAL (9)
+## 2. Full run — findings (22)
 
-| Finding | kind | OWASP |
+### CRITICAL (9)
+
+| Finding | kind | Tag |
 | --- | --- | --- |
-| Path traversal reads server secret files | app-code | API1 |
-| Unauthenticated user dump | app-code | API1 |
-| IDOR (Insecure Direct Object Reference) on `/api/users/:id` without auth | app-code | API1 |
+| Path traversal exposes virtual secret-file contents | app-code | CWE-22 |
+| Unauthenticated user dump | app-code | API5 |
+| IDOR on `/api/users/:id` without auth | app-code | API1 |
 | Debug endpoint leaks JWT signing secret | app-code | API8 |
-| BOLA (Broken Object Level Authorization) on `/api/orders` | app-code | API1 |
-| Mass assignment privilege escalation | app-code | API3 |
+| BOLA on `/api/orders` | app-code | API1 |
+| Admin route accessible to a non-admin identity | app-code | API5 |
 | Cross-user write without ownership check | app-code | API1 |
-| Admin route checks login only, not role | app-code | API5 |
+| Mass assignment privilege escalation | app-code | API3 |
 | Forged JWTs accepted (weak/leaked secret) | app-code | API2 |
 
+### HIGH (7)
+
+| Finding | kind | Tag | Notes |
+| --- | --- | --- | --- |
+| Login accepts approximately 1.5 MiB JSON body | misconfig | API4 | HTTP 401 after parsing, in 106 ms |
+| No authentication throttling observed in this batch | framework-gap | API2 | 40 × 401, zero 429 |
+| Open redirect | app-code | CWE-601 | `Location: https://evil-phish.example/steal` |
+| Open proxy: server fetches arbitrary URLs (SSRF surface) | app-code | API7 | after the 1042 self-block |
+| App code: reflected HTML echo sink (XSS class) | app-code | CWE-79 | |
+| Unauthenticated PII search | app-code | API3 | |
+| Unauthenticated settings write accepts arbitrary properties | app-code | API5 | |
+
+### MEDIUM (3) and INFO (3)
+
+| Finding | Severity | kind | Tag |
+| --- | --- | --- | --- |
+| Custom handler exposes stack trace | MEDIUM | misconfig | API8 |
+| Client-selected delay holds a request for approximately 3 seconds | MEDIUM | framework-gap | API4 |
+| Login error messages enable account enumeration | MEDIUM | app-code | API2 |
+| `X-Powered-By: Express` left enabled | INFO | framework-gap | — |
+| Security headers missing on health response | INFO | framework-gap | API8 |
+| Health response permits cross-origin reads | INFO | misconfig | API8 |
+
+All six audited browser headers were missing on the health response, including
+`strict-transport-security`.
+
 ---
 
-## 3. HIGH (9)
+## 3. Short edition — findings (11)
 
-| Finding | kind | Notes |
+| Phase | Finding | Severity |
 | --- | --- | --- |
-| CORS misconfig allows any browser origin | misconfig | `ACA-Origin: *` |
-| Demo misconfig: custom ~50mb bodies | misconfig | not Express `json()` 100kb default |
-| No rate limiting on authentication | framework-gap | 40×401, zero 429 |
-| Open redirect | app-code | |
-| Open proxy: arbitrary external URLs | app-code | after CF 1042 self-block |
-| Open proxy no egress allowlist (IMDS-class) | app-code | app did not refuse link-local URL |
-| HTML echo XSS class | app-code | |
-| Unauthenticated PII (Personally Identifiable Information) search | app-code | |
-| Unauthenticated settings write | app-code | |
+| 02 Data theft | Unauthenticated user dump | CRITICAL |
+| 02 | IDOR on `/api/users/:id` without auth | CRITICAL |
+| 02 | Unauthenticated PII search | HIGH |
+| 03 Path traversal | Path traversal exposes virtual secret-file contents | CRITICAL |
+| 04 SSRF | Open proxy: server fetches arbitrary URLs (SSRF surface) | HIGH |
+| 05 Authn ≠ authz | BOLA on `/api/orders` | CRITICAL |
+| 05 | Admin route accessible to a non-admin identity | CRITICAL |
+| 05 | Cross-user write without ownership check | CRITICAL |
+| 05 | Mass assignment privilege escalation | CRITICAL |
+| 06 Login flood | No authentication throttling observed in this batch | HIGH |
+| 07 Forge | Forged JWTs accepted (weak/leaked secret) | CRITICAL |
 
-**MEDIUM:** missing secure headers, stack leak misconfig, no app request timeout, login enumeration  
-**INFO:** `X-Powered-By: Express`
+Phase 04 is the weak beat on this host: the screen shows a `◇ PLATFORM` line and
+then a fetch of `example.com`, not the signing secret. On a laptop target the
+same phase shows the secret a second time.
 
 ---
 
 ## 4. Misconfig (3) — whose fault on this Cloudflare deploy?
 
-These **HIGH/MEDIUM** lines appear on the Worker with `(misconfig)` in the terminal.  
-They are **not** Cloudflare defaults and **not** Express inventing open CORS / huge bodies / prod stacks.
+These lines carry `(misconfig)` in the full run. They are **not** Cloudflare
+defaults and **not** Express defaults.
 
-| Finding | Severity | Terminal kind | Not whose fault | Is whose fault | Shipped how |
-| --- | --- | --- | --- | --- | --- |
-| CORS misconfig allows any browser origin | HIGH | `misconfig` | CF edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
-| Demo misconfig: custom ~50mb bodies | HIGH | `misconfig` | CF edge, Express `json()` 100kb | Demo app + vars | `BODY_LIMIT = "50mb"` in `wrangler.toml` + `jsonBody` |
-| Custom error handler leaks stack | MEDIUM | `misconfig` | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
+| Finding | Severity | Not whose fault | Is whose fault | Shipped how |
+| --- | --- | --- | --- | --- |
+| Health response permits cross-origin reads | INFO | CF edge, bare Express | Demo app | `cors({ origin: "*" })` in `server/app.js` |
+| Login accepts approximately 1.5 MiB JSON body | HIGH | CF edge, Express `json()` 100kb | Demo app + vars | `BODY_LIMIT = "50mb"` in `wrangler.toml` + `jsonBody` |
+| Custom handler exposes stack trace | MEDIUM | Express `finalhandler` when `NODE_ENV=production` | Demo app | `/api/boom` + error middleware return `stack` |
 
-**Attack phases that produce them** (same `attack/attack.mjs` on every host):
+`◇ PLATFORM` (error **1042**) is the only "Cloudflare did something" line in
+either run. It does not fix authorization or any of the three misconfigs.
 
-| Phase | Request | Finding |
-| --- | --- | --- |
-| CORS misconfig | `GET /api/health` + `Origin: https://evil-attacker.example` | open `ACA-Origin: *` |
-| Oversized JSON body | `POST /api/auth/login` ~1.5 MiB body | accepted (not 413) |
-| Stack / error path | `GET /api/boom` (and related error path) | `stack` in JSON |
-
-### Terminal excerpt (committed proof — from live CF run)
-
-Full wire log is gitignored (`ATTACK-RUN-CLOUDFLARE-LATEST.log`). This block is what the engagement report prints after the three misconfig phases (and the rest of the run):
-
-```text
-  PHASE 04  ·  CORS misconfig — any Origin allowed (no login)
-  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
-  · cors package with origin: '*' — not an Express default (bare Express has no CORS)...
-
-  PHASE 05  ·  Oversized JSON body (demo misconfig — not Express default)
-  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
-  · Not an Express default. body-parser/express.json limit defaults to '100kb'...
-
-  ... later ...
-  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
-
-  By kind         {"framework-gap":4,"misconfig":3,"app-code":16}
-
-  Whose fault? (read the kind tag on every finding):
-    (misconfig)     3 — this demo's app/deploy vars (CORS *, BODY_LIMIT ~50mb, stack leak).
-                     Not Express defaults. Not Cloudflare/Vercel inventing them.
-    (framework-gap) 4 — Express does not ship the control ...
-    (app-code)     16 — vulnerable routes you wrote ...
-    ◇ PLATFORM      N — edge/runtime blocked a probe; does not mean the API is authorized.
-
-  Misconfig detail (cloud hosts still show these — same app.js):
-  [HIGH] [API8] (misconfig) CORS misconfig allows any browser origin
-  [HIGH] [API4] (misconfig) Demo misconfig: custom parser allows ~50mb bodies
-  [MEDIUM] [API8] (misconfig) Misconfig: custom error handler leaks stack in production
-```
-
-`◇ PLATFORM` (e.g. **1042**) is the only “Cloudflare did something” class in this study — and it does **not** fix authz or the three misconfigs above.
-
-See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty) · talk: [`TALK.md`](TALK.md#terminal-whose-fault-on-cloud-runs).
+See also: [`CLOUDFLARE-VS-APP-SECURITY.md`](CLOUDFLARE-VS-APP-SECURITY.md#whose-fault-cloud-deploy-honesty).
 
 ---
 
-## 5. Platform notes (this run)
+## 5. Platform notes (this capture)
 
-| Probe | CF result |
+| Probe | Cloudflare result |
 | --- | --- |
-| Self `/api/proxy` → debug | **1042** — edge/runtime, not app authz |
-| External open proxy (`example.com`) | **HIGH** — still works |
-| IMDS `169.254.169.254` | no IMDS data · `◇ PLATFORM` |
-| Internal pivot (`--internal`) | not used (API cannot reach your laptop from CF) |
+| Self `/api/proxy` → own debug config | **1042** — edge/runtime, not app authorization |
+| External open proxy (`example.com`) | Still works (**HIGH**) |
+| Metadata URL `169.254.169.254` | `403`, no metadata content, no finding |
+| Raw TCP probes | Skipped (HTTPS target) |
+| Internal pivot (`--internal`) | Not used; the Worker cannot reach a laptop |
+
+### Warm instances and `--reset`
+
+The in-memory demo data lives per Worker instance. After these two runs a single
+`POST /api/demo/reset` returned `ok`, yet the next read of user #2 still said
+`Hijacked Bob`: the reset and the read were served by different instances. Eight
+resets in a row left twelve consecutive reads clean.
+
+Both attack scripts now check for this. After `--reset` they read `/api/users`
+and repeat the reset (up to eight times) while a seed user still looks tampered
+with. If you see `extra reset(s) for other warm instances` in phase 01, that is
+this.
 
 ---
 
-## 6. Phase order (current attacker)
+## 6. Talk takeaway
 
-Reset → recon → headers → CORS → body → flood → traversal → redirect → SSRF → stack/echo → slow → unauth theft → enum → settings → raw TCP (skip HTTPS) → **login / BOLA (Broken Object Level Authorization) / mass-assign / admin / alg:none / forge**
+Cloudflare's edge blocked one self-fetch. It did not stop the card dump, the
+secret leak, BOLA, mass assignment or the forged admin token.
+**Edge ≠ API authorization.**
 
-With `--drama`, each phase waits for **Enter**.
-
----
-
-## 7. Talk takeaway
-
-Cloudflare free edge blocked **noisy self-SSRF** and has no real IMDS. It did **not** stop unauth card dump, secret leak, BOLA (Broken Object Level Authorization), mass-assign, or forged admin. **Edge ≠ API authorization.**  
-When the console shows `(misconfig)` for CORS / body / stack on this Worker URL, blame the **demo app and `BODY_LIMIT` in wrangler** — not Cloudflare and not Express’s real defaults.
+For the framework side of the same argument (the same app rebuilt on DaloyJS,
+attacked with the same script) see [`server-daloy/README.md`](server-daloy/README.md)
+or run `npm run compare`. That comparison is laptop-only; nothing DaloyJS is
+deployed to Cloudflare.

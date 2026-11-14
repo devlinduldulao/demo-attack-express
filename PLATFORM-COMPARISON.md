@@ -1,11 +1,12 @@
 # Platform comparison — same Express 5 app
 
-> Historical comparison from 2026-08-01. The counts, ratings, and terminal excerpts
-> below predate the evidence audit and are not current expected output. In current
-> runs, health CORS/headers are INFO posture observations, failed metadata fetches
-> do not produce findings, and path traversal/open redirect/HTML injection use CWE
-> labels. Self-fetch does not prove internal-only access. See [README.md](README.md) for current
-> classifications; capture fresh runs before presenting new totals.
+> Both columns were re-captured on 2026-11-14 with the current attack script
+> (`attack/attack.mjs`, the full 16-phase run). Severities are demo-author
+> ratings, not CVSS; counts are finding records, not unique root causes.
+>
+> This page compares **hosts** for the same Express app. For the same app on a
+> different **framework**, see [`server-daloy/README.md`](server-daloy/README.md)
+> (`npm run compare`).
 
 **One vulnerable API** (`server/app.js`), three runtimes:
 
@@ -15,9 +16,8 @@
 | **Vercel serverless** | `https://vaultpay-api.vercel.app` | `cd server && vercel --prod --yes` |
 | **Node long-running** | `http://localhost:4000` | `cd server && npm start` |
 
-**Engagement date:** 2026-08-01 (attacker at capture time: CORS, IMDS-class, no pollution phase, `--drama` optional).
-**CF Version ID:** `46b0d6b3-8d54-4217-8eac-c9c28dffbe09`  
-**Attacker:** `attack/attack.mjs --reset --json`
+**Engagement date:** 2026-11-14, both hosts. Neither was redeployed for the capture.
+**Attacker:** `attack/attack.mjs --reset --json` (the full 16-phase run).
 
 ---
 
@@ -26,17 +26,19 @@
 | | Cloudflare | Vercel |
 | --- | --- | --- |
 | Study | [`ATTACK-RUN-CLOUDFLARE.md`](ATTACK-RUN-CLOUDFLARE.md) | [`ATTACK-RUN-VERCEL.md`](ATTACK-RUN-VERCEL.md) |
-| Result | **9** critical · **71** req · **4.3s** | **10** critical · **70** req · **10.1s** |
-| Findings total | 23 | 23 |
-| By kind | gap 4 · misconfig 3 · app-code 16 | gap 4 · misconfig 3 · app-code 16 |
+| Result, full script | **9** critical · **71** req · **4.1s** | **10** critical · **71** req · **9.1s** |
+| Result, short script | **8** critical · **57** req · **0.7s** | **9** critical · **56** req · **3.1s** |
+| Finding records (full) | 22 | 22 |
+| By kind (full) | gap 4 · misconfig 3 · app-code 15 | gap 4 · misconfig 3 · app-code 15 |
 | `"express":"5"` | Yes | Yes |
-| Unauth PII (Personally Identifiable Information) / IDOR (Insecure Direct Object Reference) / debug secret | CRITICAL | CRITICAL |
+| Unauth PII / IDOR / debug secret | CRITICAL | CRITICAL |
 | Path traversal JWT file | CRITICAL | CRITICAL |
-| CORS `*` | HIGH misconfig | HIGH misconfig |
-| Self-SSRF → debug | **1042** → external HIGH | **CRITICAL** |
-| IMDS-class URL | no IMDS + HIGH no allowlist | no IMDS + HIGH no allowlist |
-| BOLA (Broken Object Level Authorization) / mass-assign / BFLA (Broken Function Level Authorization) / forge | **YES** full climax | **YES** full climax |
-| `alg:none` | rejected 401 | rejected 401 |
+| CORS `*` on health | INFO misconfig | INFO misconfig |
+| Self-SSRF → debug | **1042** `◇ PLATFORM` → external fetch HIGH | **CRITICAL** |
+| Metadata URL | `403`, no finding | `502`, no finding |
+| BOLA / mass-assign / BFLA / forge | **YES** full climax | **YES** full climax |
+| `alg:none` | rejected `401` by `jsonwebtoken` | **403 at the edge** `◇ PLATFORM` (`x-vercel-mitigated: deny`) |
+| HSTS header | missing | present (platform) |
 
 ---
 
@@ -48,7 +50,8 @@
      ┌─────┴─────┐
      ▼           ▼
  Cloudflare    Vercel
- edge 1042     self-SSRF works
+ edge 1042     edge denies alg:none
+ on self-SSRF  self-SSRF works
      │           │
      ▼           ▼
  Still pwned   Still pwned
@@ -56,8 +59,8 @@
  both forged admin
 ```
 
-1. **Hosting ≠ API security** — both dump PII (Personally Identifiable Information) and accept forged admin JWT.  
-2. **CF edge** changes which *probes* fail (self-fetch), not whether *authz* works.  
+1. **Hosting ≠ API security** — both dump PII and accept forged admin JWT.  
+2. **Each edge** stops one *probe* (Cloudflare: the self-fetch; Vercel: the unsigned token), not whether *authz* works.  
 3. **+1 critical on Vercel** is self-SSRF of the debug secret — same app hole, different edge.  
 4. Stage: `--drama --reset` on either URL; prefer either for climax (both forge).
 
@@ -65,16 +68,16 @@
 
 ## Same misconfigs on both clouds (not the platform’s fault)
 
-`By kind` is **identical**: `framework-gap: 4 · misconfig: 3 · app-code: 16`.  
+`By kind` is **identical**: `framework-gap: 4 · misconfig: 3 · app-code: 15`.
 Cloud hosting does not create or remove those three misconfigs — they are in **shared app source + deploy vars**.
 
 | Terminal finding | kind | CF | Vercel | Whose fault? |
 | --- | --- | --- | --- | --- |
-| CORS misconfig allows any browser origin | **misconfig** | HIGH | HIGH | Demo `cors({ origin: "*" })` in `app.js` — bare Express has **no** CORS |
-| Demo misconfig: custom ~50mb bodies | **misconfig** | HIGH | HIGH | Demo `BODY_LIMIT=50mb` (`wrangler.toml` / Vercel env / `app.js`) — Express `json()` default **100kb** → 413 |
-| Misconfig: custom error handler leaks stack | **misconfig** | MEDIUM | MEDIUM | Demo `/api/boom` + error middleware — not Express prod `finalhandler` |
-| No rate limiting / no secure headers | **framework-gap** | same | same | Express does not ship these |
-| BOLA (Broken Object Level Authorization) / forge / PII (Personally Identifiable Information) dump / … | **app-code** | same | same | Route logic |
+| Health response permits cross-origin reads | **misconfig** | INFO | INFO | Demo `cors({ origin: "*" })` in `app.js` — bare Express has **no** CORS |
+| Login accepts approximately 1.5 MiB JSON body | **misconfig** | HIGH | HIGH | Demo `BODY_LIMIT=50mb` (`wrangler.toml` / Vercel env / `app.js`) — Express `json()` default **100kb** → 413 |
+| Custom handler exposes stack trace | **misconfig** | MEDIUM | MEDIUM | Demo `/api/boom` + error middleware — not Express prod `finalhandler` |
+| No login throttling / secure headers missing | **framework-gap** | same | same (HSTS added by Vercel) | Express does not ship these |
+| BOLA / forge / PII dump / … | **app-code** | same | same | Route logic |
 | Self-SSRF of debug secret | **app-code** hole; outcome differs | **1042** `◇ PLATFORM` | **CRITICAL** | Edge policy ≠ authz; open proxy is still app-code |
 
 **Say on stage:**  
@@ -82,6 +85,13 @@ Cloud hosting does not create or remove those three misconfigs — they are in *
 
 **Terminal on both URLs** (after the run, same report block):
 
+```text
+Whose fault? ...
+  (misconfig)     3 — ... Not Express defaults. Not Cloudflare/Vercel inventing them.
+Misconfig detail (cloud hosts still show these — same app.js):
+  [INFO] (misconfig) Health response permits cross-origin reads
+  [HIGH] (misconfig) Login accepts approximately 1.5 MiB JSON body
+  [MEDIUM] (misconfig) Custom handler exposes stack trace
 ```text
 Whose fault? ...
   (misconfig)     3 — ... Not Express defaults. Not Cloudflare/Vercel inventing them.

@@ -1,0 +1,21 @@
+{
+  "name": "vaultpay-api-daloy",
+  "version": "1.0.0",
+  "description": "The VaultPay demo API rebuilt on DaloyJS with the same developer mistakes. Educational use only.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:opt-in": "DALOY_OPT_IN=1 node server.js",
+    "start:weak-secret": "JWT_SECRET=supersecret123 node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": "^24.0.0 || >=26.0.0"
+  },
+  "dependencies": {
+    "@daloyjs/core": "^1.24.2",
+    "zod": "^4.6.7"
+  }
+}

